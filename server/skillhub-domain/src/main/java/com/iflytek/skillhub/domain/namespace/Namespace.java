@@ -23,6 +23,13 @@ public class Namespace {
     @Column(length = 512)
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private NamespaceType type = NamespaceType.TEAM;
+
+    @Column(name = "avatar_url", length = 512)
+    private String avatarUrl;
+
     @Column(name = "created_by")
     private Long createdBy;
 
@@ -54,7 +61,14 @@ public class Namespace {
     public Long getId() { return id; }
     public String getSlug() { return slug; }
     public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
     public NamespaceStatus getStatus() { return status; }
+    public NamespaceType getType() { return type; }
+    public void setType(NamespaceType type) { this.type = type; }
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public Long getCreatedBy() { return createdBy; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

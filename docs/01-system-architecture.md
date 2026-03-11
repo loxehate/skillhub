@@ -7,7 +7,7 @@
 - Security: Spring Security + spring-boot-starter-oauth2-client
 - Database: PostgreSQL 16.x
 - Cache/Session: Redis 7.x（一期必须依赖，用于 Session 存储 + 分布式锁 + 幂等去重）
-- Object Storage: S3 协议兼容对象存储
+- Object Storage: `LocalFile` + S3 协议兼容对象存储双实现
 - Search: PostgreSQL Full-Text Search（一期）
 - Future Search: Elasticsearch / OpenSearch / Vector Search
 
@@ -23,7 +23,7 @@ server/
 ├── skillhub-domain              # 领域模型 + 领域服务 + 应用服务
 ├── skillhub-auth                # OAuth2 认证 + RBAC + 授权判定
 ├── skillhub-search              # 搜索 SPI + PostgreSQL 全文实现
-├── skillhub-storage             # 对象存储抽象 + S3 实现
+├── skillhub-storage             # 对象存储抽象 + LocalFile/S3 双实现
 └── skillhub-infra               # JPA、通用工具、配置基础
 ```
 
@@ -47,14 +47,14 @@ storage → (独立抽象)     # 纯 SPI，不依赖 domain
 
 ### skillhub-app
 - Spring Boot 启动类
-- Controller 分包：`controller.portal`（公开查询）、`controller.cli`（CLI API）、`controller.admin`（管理后台）
+- Controller 聚合：公开查询、认证后写接口、CLI API、兼容层、管理后台
 - 全局异常处理、请求日志、OpenAPI 配置
 - 配置文件与环境 profile
 
 ### skillhub-domain
-- 核心实体：Skill, SkillVersion, SkillFile, SkillTag, Namespace, NamespaceMember, ReviewTask, AuditLog, SkillStar, SkillRating
+- 核心实体：Skill, SkillVersion, SkillFile, SkillTag, Namespace, NamespaceMember, ReviewTask, PromotionRequest, AuditLog, SkillStar, SkillRating, IdempotencyRecord
 - 领域服务：发布流程编排、审核状态机、命名空间管理、标签管理
-- 应用服务：面向 Controller 的用例编排
+- 应用服务：聚焦领域规则与用例编排
 - Repository 接口定义（实现在 infra）
 
 ### skillhub-auth
@@ -62,6 +62,7 @@ storage → (独立抽象)     # 纯 SPI，不依赖 domain
 - `CustomOAuth2UserService`：OAuth2 用户 → 平台用户映射
 - `IdentityBindingService`：外部身份 → 平台用户绑定
 - Spring Session (Redis) 管理
+- CLI Device Flow 授权、轮询与凭证签发
 - API Token 签发、校验、吊销
 - RBAC：角色定义、权限点、资源级授权判定
 - 用户实体：UserAccount, IdentityBinding, ApiToken, Role, Permission, UserRoleBinding
@@ -74,7 +75,7 @@ storage → (独立抽象)     # 纯 SPI，不依赖 domain
 
 ### skillhub-storage
 - SPI 接口：`ObjectStorageService`
-- 一期实现：S3 兼容实现（MinIO / AWS S3）
+- 一期实现：`LocalFileStorageService`（本地开发/零依赖）+ `S3StorageService`（集成测试/生产）
 - 文件哈希校验、打包下载
 - 对象 key 规则（使用不可变 ID，避免命名空间变更导致 key 失效）：
   - 正式路径：`skills/{skillId}/{versionId}/{filePath}`
@@ -136,14 +137,14 @@ skillhub/
 |------|---------|------|
 | PostgreSQL 16.x | 主从 | 主存储 |
 | Redis 7.x | Sentinel 或 Cluster | Session 存储 + 分布式锁 + 幂等去重 |
-| S3 兼容存储 | MinIO 或云厂商 S3 | 技能包文件 + 预打包 zip |
+| 对象存储 | LocalFile（开发）/ MinIO / 云厂商 S3 | 技能包文件 + 预打包 zip |
 | Ingress | Nginx Ingress Controller | 路由分发 + TLS 终止 |
 
 ## 10. 推荐的一期技术决策
 
 - ORM：Spring Data JPA (Hibernate)
 - API 文档：Springdoc OpenAPI
-- 对象存储：MinIO / AWS S3 兼容接口
+- 对象存储：开发默认 LocalFile，集成测试/生产使用 MinIO / AWS S3 兼容接口
 - 异步任务：Spring Events + 异步线程池，后续视复杂度引入 MQ
 - 缓存/Session：Spring Session + Redis
 - 数据库迁移：Flyway

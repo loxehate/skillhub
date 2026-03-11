@@ -26,7 +26,7 @@
               ▼
 ┌─────────────────────────────┐
 │  Layer 4: Session / Token   │  Web: Spring Session (Redis)
-│                             │  CLI: API Token
+│                             │  CLI: Device Flow + Bearer Token
 └─────────────┬───────────────┘
               │ SecurityContext
               ▼
@@ -269,13 +269,21 @@ public class OAuthClaimsExtractor {
 - 合并后原 user_account 标记为 `MERGED`，保留记录不物理删除
 - 预留扩展位：未来可配置 `astron.identity.auto-merge-on-verified-email=true` 开启基于已验证邮箱的自动合并
 
-## 5. CLI 认证（API Token）
+## 5. CLI 认证（OAuth Device Flow + 平台凭证）
 
-- Token 格式：`ask_` 前缀 + 随机字符串
+CLI 主认证基线调整为 OAuth Device Flow。用户在 CLI 中发起授权，浏览器侧完成登录与确认，CLI 轮询后获取平台签发的凭证并访问 CLI API。
+
+- 发起：CLI 请求 device code，展示 `user_code` 与验证地址
+- 授权：用户在浏览器完成 GitHub OAuth 登录并确认绑定
+- 轮询：CLI 使用 `device_code` 轮询授权结果
+- 完成：服务端签发 CLI 可用凭证，CLI 持 `Authorization: Bearer <token>` 调用后续接口
+
+API Token 仍保留，但定位从“CLI 唯一认证方式”调整为“平台通用凭证能力”：
+
+- 用途：自动化脚本、兼容层调用、手工 Token 管理、后续系统集成
 - 存储：只存 SHA-256 哈希，明文只展示一次
-- 校验：从 `Authorization: Bearer ask_xxx` 提取 → 哈希比对 → 加载关联用户 → 检查用户状态
+- 校验：从 `Authorization: Bearer <token>` 提取 → 哈希比对 → 加载关联用户 → 检查用户状态
 - 作用域：`skill:read`, `skill:publish`, `skill:delete`, `token:manage`
-- 天然无状态，多 Pod 安全
 
 > **一期作用域说明（非最小权限）**：一期 Token 作用域为粗粒度动作级别，不与 namespace 绑定。Token 继承用户的全部权限——如果用户是某个 namespace 的 MEMBER，则该用户的任何 Token（只要包含 `skill:publish` scope）都可以向该 namespace 发布技能。这是有意的一期简化，不满足最小权限原则。后续版本计划引入 namespace 级别的 Token 作用域限定（如 `namespace:ai-team:skill:publish`），或通过 `api_token_scope` 子表实现 Token 与 namespace 的绑定。
 
@@ -312,7 +320,7 @@ public class OAuthClaimsExtractor {
 | 提交发布审核 | `skill:publish` | 用户是该 namespace 的 MEMBER 以上，且 namespace 非 FROZEN |
 | 管理技能（归档/版本管理） | `skill:manage` | namespace ADMIN 以上，或 owner 本人 |
 | 提升到全局 | `skill:promote` | namespace ADMIN 以上，或 owner 本人 |
-| 审核团队空间技能 | `review:approve` | 该 namespace 的 ADMIN，或持有 SKILL_ADMIN / SUPER_ADMIN |
+| 审核团队空间技能 | `review:approve` | 该 namespace 的 ADMIN 或 OWNER |
 | 审核全局空间技能 | `review:approve` | 持有 SKILL_ADMIN / SUPER_ADMIN |
 | 审核提升申请 | `promotion:approve` | 持有 SKILL_ADMIN / SUPER_ADMIN |
 | 隐藏/撤回技能 | `skill:manage` | 持有 SKILL_ADMIN / SUPER_ADMIN |
@@ -331,12 +339,12 @@ public class OAuthClaimsExtractor {
 |----------|---------|---------|
 | `POST /api/v1/admin/reviews/{id}/approve` | 全局空间审核 | SKILL_ADMIN / SUPER_ADMIN |
 | `POST /api/v1/admin/promotions/{id}/approve` | 提升到全局审核 | SKILL_ADMIN / SUPER_ADMIN |
-| `POST /api/v1/namespaces/{slug}/reviews/{id}/approve` | 团队空间内发布审核 | 该空间 ADMIN |
+| `POST /api/v1/namespaces/{slug}/reviews/{id}/approve` | 团队空间内发布审核 | 该空间 ADMIN / OWNER |
 | `GET /api/v1/admin/audit-logs` | 审计日志查询 | AUDITOR / SUPER_ADMIN |
 | `PUT /api/v1/admin/users/{id}/roles` | 用户角色管理 | USER_ADMIN / SUPER_ADMIN |
 | `POST /api/v1/admin/users/{id}/approve` | 用户准入审批 | USER_ADMIN / SUPER_ADMIN |
 
-SUPER_ADMIN 和持有对应角色的用户均可通过 Admin API 操作，团队管理员只能通过 Namespace API 审核本空间。
+SUPER_ADMIN 和持有对应角色的用户均可通过 Admin API 操作；团队空间审核限定通过 Namespace API 完成，平台管理员不越权进入团队空间审核流程。
 
 ## 7. Session 设计
 
@@ -371,7 +379,7 @@ Session 中存储以下字段：
 - 后端设置 `XSRF-TOKEN` Cookie（`HttpOnly=false`）
 - 前端从 Cookie 读取 Token，放入请求 Header `X-XSRF-TOKEN`
 - 后端校验 Header 与 Cookie 是否一致
-- CLI API（`/api/v1/cli/**`）豁免 CSRF（使用 API Token 认证，无 Cookie）
+- CLI API（`/api/v1/cli/**`）与兼容层（`/api/compat/v1/**`）豁免 CSRF（使用 Bearer Token，无 Cookie）
 
 ## 9. 前端权限控制
 
@@ -443,7 +451,7 @@ function usePermission() {
 | 场景 | 判定逻辑 | UI 行为 |
 |------|---------|---------|
 | 技能详情页"提交发布"按钮 | `isNamespaceMember(namespace)` | 非成员不显示 |
-| 审核列表"通过/拒绝"按钮 | `isNamespaceAdmin(namespace) \|\| isSkillAdmin()` | 无权限不显示 |
+| 审核列表"通过/拒绝"按钮 | 团队空间：`isNamespaceAdmin(namespace)`；全局空间：`isSkillAdmin()` | 无权限不显示 |
 | 用户管理页 | `isUserAdmin()` | 无权限不显示 |
 | 用户管理页"设为 SUPER_ADMIN" | `isSuperAdmin()` | 仅超管可见 |
 | 审计日志页 | `isAuditor()` | 无权限不显示 |
@@ -509,10 +517,10 @@ window.location.href = '/oauth2/authorization/github'
 
 ### 10.3 CLI API
 
-| 接口 | 所需 Token Scope | 额外判定 |
-|------|-----------------|---------|
-| `GET /api/v1/cli/whoami` | 任意有效 Token | 无 |
-| `POST /api/v1/cli/publish` | `skill:publish` | 用户是目标 namespace 的 MEMBER 以上 |
+| 接口 | 所需凭证 | 额外判定 |
+|------|---------|---------|
+| `GET /api/v1/cli/whoami` | 任意有效 Bearer Token | 无 |
+| `POST /api/v1/cli/publish` | Bearer Token + `skill:publish` | 用户是目标 namespace 的 MEMBER 以上 |
 
 ### 10.4 Admin API
 
@@ -531,20 +539,18 @@ window.location.href = '/oauth2/authorization/github'
 
 | 接口 | 所需 namespace 角色 | 判定来源 |
 |------|-------------------|---------|
-| `POST /api/v1/namespaces/{slug}/reviews/{id}/approve` | 该空间 ADMIN 以上 | `namespace_member.role` |
-| `POST /api/v1/namespaces/{slug}/reviews/{id}/reject` | 该空间 ADMIN 以上 | `namespace_member.role` |
+| `POST /api/v1/namespaces/{slug}/reviews/{id}/approve` | 该空间 ADMIN / OWNER | `namespace_member.role` |
+| `POST /api/v1/namespaces/{slug}/reviews/{id}/reject` | 该空间 ADMIN / OWNER | `namespace_member.role` |
 | `POST /api/v1/namespaces/{slug}/members` | 该空间 ADMIN 以上 | `namespace_member.role` |
 | `DELETE /api/v1/namespaces/{slug}/members/{userId}` | 该空间 ADMIN 以上 | `namespace_member.role` |
 | `POST .../skills/{skillId}/promote` | 该空间 ADMIN 以上 或 owner | `namespace_member.role` 或 `skill.owner_id` |
 
-### 10.6 Compatibility API（Token 认证）
+### 10.6 Compatibility API（Bearer Token 认证）
 
-| 接口 | 所需 Token Scope | 额外判定 |
-|------|-----------------|---------|
-| `GET /api/compat/v1/whoami` | 任意有效 Token | 无 |
+| 接口 | 所需凭证 | 额外判定 |
+|------|---------|---------|
+| `GET /api/compat/v1/whoami` | 任意有效 Bearer Token | 无 |
 | `GET /api/compat/v1/search` | 可选（匿名限 PUBLIC） | `SearchVisibilityScope` |
 | `GET /api/compat/v1/resolve` | 可选（匿名限 PUBLIC） | visibility |
-| `GET /api/compat/v1/download` | 可选（匿名限 PUBLIC） | visibility |
-| `POST /api/compat/v1/skills` | `skill:publish` | 用户是目标 namespace 的 MEMBER 以上（namespace 由 canonical slug 解析） |
-| `DELETE /api/compat/v1/skills/{slug}` | `skill:delete` | namespace ADMIN 以上 或 owner |
-| `POST /api/compat/v1/stars/{slug}` | 任意有效 Token | 无 |
+| `GET /api/compat/v1/download/{slug}/{version}` | 可选（匿名限 PUBLIC） | visibility |
+| `POST /api/compat/v1/publish` | Bearer Token + `skill:publish` | 用户是目标 namespace 的 MEMBER 以上（namespace 由 canonical slug 解析） |

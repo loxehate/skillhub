@@ -56,7 +56,7 @@ Public API 的可见性规则：
 | GET | `/api/v1/me/stars` | 我的收藏列表 |
 | GET | `/api/v1/me/skills` | 我发布的技能列表 |
 
-### 草稿与审核提交
+### 草稿与审核提交（Phase 3 引入）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -88,14 +88,12 @@ Public API 的可见性规则：
 | GET | `/api/v1/tokens` | 列出我的 Token |
 | DELETE | `/api/v1/tokens/{id}` | 吊销 Token |
 
-## 7.5 CLI API（API Token 认证）
+## 7.5 CLI API（Bearer Token 认证，CLI 主流程由 Device Flow 获取凭证）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/v1/cli/whoami` | Token 对应的用户信息 |
-| POST | `/api/v1/cli/publish` | 发布技能包（返回 202 + publishId） |
-| GET | `/api/v1/cli/publish/{publishId}/status` | 查询发布状态（文件转正 + 提审进度） |
-| POST | `/api/v1/cli/publish/submit-review` | 手动提交审核（auto_submit=false 时使用） |
+| GET | `/api/v1/cli/whoami` | 当前 Bearer Token 对应的用户信息 |
+| POST | `/api/v1/cli/publish` | 发布技能包（Phase 2 直接返回 `PUBLISHED`，Phase 3 恢复审核流） |
 | GET | `/api/v1/cli/resolve/{namespace}/{slug}` | 解析版本 |
 | GET | `/api/v1/cli/check/{namespace}/{slug}/{version}` | 本地哈希与远端比对 |
 
@@ -104,7 +102,7 @@ Public API 的可见性规则：
 一期不仅提供 skillhub 自有 CLI API，还必须暴露一组兼容 ClawHub CLI 的 registry API。
 
 - 目标：让现有 ClawHub CLI 可通过配置 registry base URL 直接对接 skillhub
-- 范围：覆盖 ClawHub CLI 所依赖的查询、版本解析、下载、发布、校验等核心接口
+- 范围：一期聚焦覆盖 ClawHub CLI 所依赖的核心接口：查询、版本解析、下载、发布、whoami
 - 要求：兼容层优先保持 ClawHub CLI 既有请求/响应语义；若内部领域模型不同，通过 adapter 层完成协议转换，而不是要求客户端适配 skillhub 私有协议
 - 要求：兼容层纳入 OpenAPI 或独立兼容协议文档，并作为正式对外契约维护
 - 要求：兼容层与 skillhub 自有 `/api/v1/cli/**` 并存，二者共享同一套权限、审计、限流与领域服务
@@ -114,7 +112,7 @@ Public API 的可见性规则：
 
 - Registry metadata：技能查询、技能详情、版本列表、标签/默认版本解析
 - Artifact resolution：按技能坐标或版本解析下载地址/下载流
-- Publish workflow：包上传、发布状态查询、提交审核
+- Publish workflow：包上传与发布结果返回
 - Integrity check：版本存在性校验、摘要/哈希比对、whoami/token 上下文确认
 
 如 ClawHub CLI 的现有协议与 skillhub 自有接口存在差异，文档以“兼容 ClawHub CLI 协议”为准，skillhub 内部 API 可继续保持当前风格。
@@ -127,10 +125,10 @@ Admin API 按最小权限拆分，不再统一要求 SUPER_ADMIN：
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/v1/admin/reviews` | 待审核列表 |
-| GET | `/api/v1/admin/reviews/{id}` | 审核详情 |
-| POST | `/api/v1/admin/reviews/{id}/approve` | 通过审核 |
-| POST | `/api/v1/admin/reviews/{id}/reject` | 拒绝审核 |
+| GET | `/api/v1/admin/reviews` | 全局空间待审核列表 |
+| GET | `/api/v1/admin/reviews/{id}` | 全局空间审核详情 |
+| POST | `/api/v1/admin/reviews/{id}/approve` | 通过全局空间审核 |
+| POST | `/api/v1/admin/reviews/{id}/reject` | 拒绝全局空间审核 |
 | GET | `/api/v1/admin/promotions` | 待审核提升申请列表 |
 | GET | `/api/v1/admin/promotions/{id}` | 提升申请详情 |
 | POST | `/api/v1/admin/promotions/{id}/approve` | 通过提升申请 |
@@ -164,7 +162,7 @@ Admin API 按最小权限拆分，不再统一要求 SUPER_ADMIN：
 | PUT | `/api/v1/namespaces/{slug}` | 更新命名空间信息 |
 | GET | `/api/v1/namespaces/{slug}/members` | 成员列表 |
 | POST | `/api/v1/namespaces/{slug}/members` | 添加成员 |
-| PUT | `/api/v1/namespaces/{slug}/members/{userId}` | 修改成员角色 |
+| PUT | `/api/v1/namespaces/{slug}/members/{userId}/role` | 修改成员角色 |
 | DELETE | `/api/v1/namespaces/{slug}/members/{userId}` | 移除成员 |
 | GET | `/api/v1/namespaces/{slug}/reviews` | 该空间待审核列表 |
 | POST | `/api/v1/namespaces/{slug}/reviews/{id}/approve` | 空间管理员审核通过 |
@@ -225,7 +223,7 @@ Admin API 按最小权限拆分，不再统一要求 SUPER_ADMIN：
 
 兼容层 API 基地址为 `/api/compat/v1`，通过 `/.well-known/clawhub.json` 发现。兼容层使用 canonical slug（双连字符映射规则，详见 `00-product-direction.md` 1.1 节）。
 
-认证方式：`Authorization: Bearer <token>`，复用 skillhub API Token 体系。
+认证方式：`Authorization: Bearer <token>`。Bearer Token 可来自 CLI Device Flow 或平台 API Token。
 
 ### Well-known 发现
 
@@ -244,17 +242,9 @@ GET /.well-known/clawhub.json
 |------|------|------|
 | GET | `/api/compat/v1/whoami` | 当前用户信息 |
 | GET | `/api/compat/v1/search` | 搜索技能 |
-| GET | `/api/compat/v1/resolve` | 通过 slug + fingerprint 解析版本 |
-| GET | `/api/compat/v1/download` | 下载技能 zip 包 |
-| GET | `/api/compat/v1/skills` | 列出技能（分页） |
-| POST | `/api/compat/v1/skills` | 发布技能（multipart/form-data） |
-| GET | `/api/compat/v1/skills/{slug}` | 获取技能详情 |
-| DELETE | `/api/compat/v1/skills/{slug}` | 软删除技能 |
-| GET | `/api/compat/v1/skills/{slug}/versions` | 列出版本 |
-| GET | `/api/compat/v1/skills/{slug}/versions/{version}` | 版本详情 |
-| GET | `/api/compat/v1/skills/{slug}/file` | 获取单个文件内容 |
-| POST | `/api/compat/v1/stars/{slug}` | 收藏 |
-| DELETE | `/api/compat/v1/stars/{slug}` | 取消收藏 |
+| GET | `/api/compat/v1/resolve` | 通过 slug + version 解析版本 |
+| GET | `/api/compat/v1/download/{slug}/{version}` | 下载技能 zip 包 |
+| POST | `/api/compat/v1/publish` | 发布技能（multipart/form-data） |
 
 ### 兼容层请求/响应格式
 
@@ -293,24 +283,21 @@ GET /.well-known/clawhub.json
 
 注意：兼容层返回的 `slug` 为 canonical slug 格式（全局空间直接返回 skill slug，团队空间返回 `namespace--skill`）。
 
-**GET `/api/compat/v1/resolve?slug={slug}&hash={fingerprint}`**
+**GET `/api/compat/v1/resolve?slug={slug}&version={version}`**
 
 ```json
 {
   "slug": "my-skill",
   "version": "1.2.0",
-  "fingerprint": "sha256:abc123...",
-  "matched": true
+  "downloadUrl": "/api/compat/v1/download/my-skill/1.2.0"
 }
 ```
 
-`hash` 不匹配时返回最新版本 + `"matched": false`。
+**GET `/api/compat/v1/download/{slug}/{version}`**
 
-**GET `/api/compat/v1/download?slug={slug}&version={version}`**
+返回指定版本的 zip 文件流。默认版本解析由 `resolve` 接口负责。
 
-返回 zip 文件流。`version` 可选，不传时下载最新已发布版本。
-
-**POST `/api/compat/v1/skills`**
+**POST `/api/compat/v1/publish`**
 
 ```
 Content-Type: multipart/form-data
@@ -324,31 +311,7 @@ Parts:
 {
   "slug": "my-skill",
   "version": "1.0.0",
-  "status": "pending_review"
-}
-```
-
-注意：ClawHub 原始协议使用两步发布（先获取 upload URL，再 JSON publish），skillhub 兼容层简化为单步 multipart 上传。如果 ClawHub CLI 的发布流程无法适配单步模式，需要额外实现 `/api/compat/v1/upload-url` + `/api/compat/v1/publish` 两步兼容端点。
-
-**GET `/api/compat/v1/skills/{slug}`**
-
-```json
-{
-  "slug": "my-skill",
-  "name": "My Skill",
-  "description": "...",
-  "author": { "handle": "username", "displayName": "User Name" },
-  "version": "1.2.0",
-  "versions": ["1.0.0", "1.1.0", "1.2.0"],
-  "license": "MIT-0",
-  "downloadCount": 100,
-  "starCount": 50,
-  "starred": false,
-  "files": [
-    { "path": "SKILL.md", "size": 1024 }
-  ],
-  "createdAt": "2026-01-01T00:00:00Z",
-  "updatedAt": "2026-03-01T00:00:00Z"
+  "status": "published"
 }
 ```
 
@@ -359,7 +322,7 @@ Parts:
 - 响应返回时将内部坐标转换为 canonical slug
 - 兼容层不暴露 namespace 概念，对 ClawHub CLI 透明
 - 发布时如果 canonical slug 包含 `--`，解析为团队空间发布；否则发布到全局空间
-- 兼容层的认证复用 skillhub API Token，ClawHub CLI 通过 `clawhub login` 获取 token 后即可使用
+- 兼容层的认证复用 skillhub Bearer Token 体系，ClawHub CLI 通过登录或配置 token 后即可使用
 
 ## 7.11 Rate Limiting
 

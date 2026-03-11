@@ -8,6 +8,7 @@
 - 技能坐标体系：`@{namespace_slug}/{skill_slug}`，兼容层使用 `--` 双连字符映射（详见 `00-product-direction.md` 1.1 节）
 - 一期同步发布模型，暂不考虑异步发布
 - API Token 一期继承用户全部权限（非最小权限），后续版本细化
+- CLI 主认证切换为 OAuth Device Flow，Bearer Token 统一用于 CLI API 和兼容层
 - ClawHub CLI 兼容层基地址 `/api/compat/v1`，通过 `/.well-known/clawhub.json` 发现
 
 ## Phase 1：工程骨架 + 认证打通
@@ -47,8 +48,8 @@
 ### 后端
 
 - 命名空间 CRUD + 成员管理
-- 对象存储集成
-- 技能发布（上传 → 校验 → 存储 → draft，一期同步处理）
+- 对象存储集成（LocalFile + S3 双实现）
+- 技能发布（上传 → 校验 → 存储 → `PUBLISHED`，一期同步处理）
 - 技能查询（详情、版本、文件）、下载（打包 + 可见性检查，PUBLIC 匿名可下载）
 - 标签管理、搜索（PostgreSQL Full-Text，匿名搜索限 PUBLIC）
 - 异步事件基础设施
@@ -63,7 +64,7 @@
 
 ### 验收
 
-完整发布 → 存储 → 查询 → 下载链路，搜索可用，命名空间隔离生效，匿名用户可浏览/下载公共技能
+完整发布 → 存储 → 查询 → 下载链路，搜索可用，命名空间隔离生效，匿名用户可浏览/下载公共技能，Phase 2 不经过审核即可完成发布
 
 ## Phase 3：审核流程 + 评分收藏 + CLI API / ClawHub 兼容层
 
@@ -72,8 +73,9 @@
 - 审核流程（提交 → 审核 → 发布，含乐观锁）
 - 团队技能提升到全局（promotion_request 流程）
 - 评分 + 收藏 + 计数器（原子更新）
+- OAuth Device Flow（device code、授权确认、轮询换取 Bearer Token）
 - CLI API（whoami、publish、resolve、check）
-- ClawHub CLI 协议兼容层（`/api/compat/v1` 端点：search、resolve、download、publish、skills CRUD、stars）
+- ClawHub CLI 协议兼容层（`/api/compat/v1` 端点：search、resolve、download、publish、whoami）
 - 兼容层 canonical slug 映射（`--` 双连字符规则）
 - `/.well-known/clawhub.json` 发现端点
 - 协议适配器与兼容性测试（针对 ClawHub CLI 的真实请求/响应样例）
@@ -88,7 +90,7 @@
 
 ### 验收
 
-发布必须经审核，分级审核权限生效，skillhub CLI 全流程可用，ClawHub CLI 通过兼容层可完成核心 registry 操作，评分收藏可用
+发布恢复为必须经审核，团队空间自治审核与全局空间平台审核生效，skillhub CLI Device Flow 可用，ClawHub CLI 通过兼容层可完成核心 registry 操作，评分收藏可用
 
 ## Phase 4：运维增强 + 打磨
 

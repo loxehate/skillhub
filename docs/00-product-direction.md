@@ -88,7 +88,7 @@ ClawHub CLI 使用单一 slug 模型，slug 校验规则为 `[a-z0-9]([a-z0-9-]*
 ## 4. 一期 MVP 功能
 
 核心能力：
-- 技能发布（提交 → 审核 → 上线，每版本审核）
+- 技能发布（Phase 2 先直达 `PUBLISHED` 跑通主链路，Phase 3 切回“提交 → 审核 → 上线”）
 - 技能版本管理（semver + 标签）
 - 技能浏览、详情、下载（公共技能匿名可访问）
 - 标签管理（`latest` 系统保留只读 + 自定义标签人工维护）
@@ -102,16 +102,18 @@ ClawHub CLI 使用单一 slug 模型，slug 校验规则为 `[a-z0-9]([a-z0-9-]*
 - 创建技能时选择归属空间
 
 审核流程：
-- 每版本审核策略
+- Phase 2：跳过审核，发布链路直达 `PUBLISHED`
+- Phase 3 起恢复每版本审核策略
 - 分级审核：团队空间由团队管理员审核，全局空间由平台管理员审核
 - 团队技能提升到全局需平台管理员二次审核
-- 平台管理员拥有全局审核权
+- 平台管理员只负责全局空间审核与提升审核，不介入团队空间审核
 - 一期纯人工审核，架构预留自动预检扩展点（`PrePublishValidator`）
 
 认证与权限：
 - OAuth2 标准登录（一期 GitHub OAuth）
-- API Token（CLI / agent 使用）
-- ClawHub CLI 协议兼容层（registry API 兼容查询、解析、下载、发布、校验等核心接口）
+- CLI 认证采用 OAuth Device Flow，由 Web 授权后签发 CLI 可用凭证
+- API Token 保留为平台通用凭证能力，用于自动化、兼容层和后续扩展
+- ClawHub CLI 协议兼容层（一期聚焦 search、resolve、download、publish、whoami 等核心接口）
 - RBAC 角色权限体系（平台角色：SUPER_ADMIN / SKILL_ADMIN / USER_ADMIN / AUDITOR + 命名空间角色）
 - 管理后台：用户角色管理、发布审核
 
@@ -146,5 +148,5 @@ ClawHub CLI 使用单一 slug 模型，slug 校验规则为 `[a-z0-9]([a-z0-9-]*
 - 技能包主入口文件固定为 `SKILL.md`
 - 元数据以 `SKILL.md` frontmatter 为主，数据库持久化解析结果
 - 文件内容原文存对象存储，检索面向数据库中的派生字段与可索引文本
-- Web 认证与 API Token 认证分离，但统一汇聚到平台用户体系
+- Web 认证、CLI Device Flow 与 API Token 凭证统一汇聚到平台用户体系
 - 公共技能（visibility=PUBLIC）匿名可浏览和下载，无需登录
