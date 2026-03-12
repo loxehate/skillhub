@@ -71,3 +71,18 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+---
+# Docker profile
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:skillhub}
+    username: ${DB_USER:skillhub}
+    password: ${DB_PASS:skillhub_dev}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
