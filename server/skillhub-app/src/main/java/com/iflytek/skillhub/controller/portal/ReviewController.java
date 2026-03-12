@@ -6,9 +6,11 @@ import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import com.iflytek.skillhub.domain.review.ReviewService;
+import com.iflytek.skillhub.domain.review.ReviewPermissionChecker;
 import com.iflytek.skillhub.domain.review.ReviewTask;
 import com.iflytek.skillhub.domain.review.ReviewTaskRepository;
 import com.iflytek.skillhub.domain.review.ReviewTaskStatus;
+import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.skill.Skill;
 import com.iflytek.skillhub.domain.skill.SkillRepository;
 import com.iflytek.skillhub.domain.skill.SkillVersion;
@@ -34,6 +36,7 @@ public class ReviewController extends BaseApiController {
     private final NamespaceRepository namespaceRepository;
     private final UserAccountRepository userAccountRepository;
     private final RbacService rbacService;
+    private final ReviewPermissionChecker permissionChecker;
 
     public ReviewController(ReviewService reviewService,
                             ReviewTaskRepository reviewTaskRepository,
@@ -42,6 +45,7 @@ public class ReviewController extends BaseApiController {
                             NamespaceRepository namespaceRepository,
                             UserAccountRepository userAccountRepository,
                             RbacService rbacService,
+                            ReviewPermissionChecker permissionChecker,
                             ApiResponseFactory responseFactory) {
         super(responseFactory);
         this.reviewService = reviewService;
@@ -51,16 +55,19 @@ public class ReviewController extends BaseApiController {
         this.namespaceRepository = namespaceRepository;
         this.userAccountRepository = userAccountRepository;
         this.rbacService = rbacService;
+        this.permissionChecker = permissionChecker;
     }
 
     @PostMapping
     public ApiResponse<ReviewTaskResponse> submitReview(
             @RequestBody ReviewTaskRequest request,
-            @RequestAttribute("userId") String userId) {
-        SkillVersion sv = skillVersionRepository.findById(request.skillVersionId())
-                .orElseThrow();
-        Skill skill = skillRepository.findById(sv.getSkillId()).orElseThrow();
-        ReviewTask task = reviewService.submitReview(request.skillVersionId(), skill.getNamespaceId(), userId);
+            @RequestAttribute("userId") String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+        ReviewTask task = reviewService.submitReview(
+                request.skillVersionId(),
+                userId,
+                userNsRoles != null ? userNsRoles : Map.of()
+        );
         return ok("response.success.create", toResponse(task));
     }
 
@@ -104,7 +111,18 @@ public class ReviewController extends BaseApiController {
             @RequestParam Long namespaceId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestAttribute("userId") String userId) {
+            @RequestAttribute("userId") String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+        Namespace namespace = namespaceRepository.findById(namespaceId).orElseThrow();
+        Set<String> platformRoles = rbacService.getUserRoleCodes(userId);
+        if (!permissionChecker.canManageNamespaceReviews(
+                namespaceId,
+                namespace.getType(),
+                userNsRoles != null ? userNsRoles : Map.of(),
+                platformRoles)) {
+            throw new DomainForbiddenException("review.no_permission");
+        }
+
         Page<ReviewTask> tasks = reviewTaskRepository.findByNamespaceIdAndStatus(
                 namespaceId, ReviewTaskStatus.PENDING, PageRequest.of(page, size));
         return ok("response.success.read", PageResponse.from(tasks.map(this::toResponse)));
@@ -121,8 +139,21 @@ public class ReviewController extends BaseApiController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<ReviewTaskResponse> getReviewDetail(@PathVariable Long id) {
+    public ApiResponse<ReviewTaskResponse> getReviewDetail(
+            @PathVariable Long id,
+            @RequestAttribute("userId") String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
         ReviewTask task = reviewTaskRepository.findById(id).orElseThrow();
+        Namespace namespace = namespaceRepository.findById(task.getNamespaceId()).orElseThrow();
+        Set<String> platformRoles = rbacService.getUserRoleCodes(userId);
+        if (!permissionChecker.canReadReview(
+                task,
+                userId,
+                namespace.getType(),
+                userNsRoles != null ? userNsRoles : Map.of(),
+                platformRoles)) {
+            throw new DomainForbiddenException("review.no_permission");
+        }
         return ok("response.success.read", toResponse(task));
     }
 

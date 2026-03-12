@@ -3,6 +3,7 @@ package com.iflytek.skillhub.domain.review;
 import com.iflytek.skillhub.domain.event.SkillPublishedEvent;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import com.iflytek.skillhub.domain.namespace.NamespaceType;
 import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ConcurrentModificationException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -46,7 +48,8 @@ public class PromotionService {
 
     @Transactional
     public PromotionRequest submitPromotion(Long sourceSkillId, Long sourceVersionId,
-                                            Long targetNamespaceId, String userId) {
+                                            Long targetNamespaceId, String userId,
+                                            Map<Long, NamespaceRole> userNamespaceRoles) {
         Skill sourceSkill = skillRepository.findById(sourceSkillId)
                 .orElseThrow(() -> new DomainNotFoundException("skill.not_found", sourceSkillId));
 
@@ -59,6 +62,10 @@ public class PromotionService {
 
         if (sourceVersion.getStatus() != SkillVersionStatus.PUBLISHED) {
             throw new DomainBadRequestException("promotion.version_not_published", sourceVersionId);
+        }
+
+        if (!permissionChecker.canSubmitPromotion(sourceSkill, userId, userNamespaceRoles)) {
+            throw new DomainForbiddenException("promotion.submit.no_permission");
         }
 
         Namespace targetNamespace = namespaceRepository.findById(targetNamespaceId)

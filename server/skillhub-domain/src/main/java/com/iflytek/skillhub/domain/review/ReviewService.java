@@ -17,7 +17,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ConcurrentModificationException;
 import java.util.Map;
@@ -48,18 +47,27 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewTask submitReview(Long skillVersionId, Long namespaceId, String userId) {
+    public ReviewTask submitReview(Long skillVersionId,
+                                   String userId,
+                                   Map<Long, NamespaceRole> userNamespaceRoles) {
         SkillVersion skillVersion = skillVersionRepository.findById(skillVersionId)
                 .orElseThrow(() -> new DomainNotFoundException("skill_version.not_found", skillVersionId));
+
+        Skill skill = skillRepository.findById(skillVersion.getSkillId())
+                .orElseThrow(() -> new DomainNotFoundException("skill.not_found", skillVersion.getSkillId()));
 
         if (skillVersion.getStatus() != SkillVersionStatus.DRAFT) {
             throw new DomainBadRequestException("review.submit.not_draft", skillVersionId);
         }
 
+        if (!permissionChecker.canSubmitReview(skill.getNamespaceId(), userNamespaceRoles)) {
+            throw new DomainForbiddenException("review.submit.no_permission");
+        }
+
         skillVersion.setStatus(SkillVersionStatus.PENDING_REVIEW);
         skillVersionRepository.save(skillVersion);
 
-        ReviewTask task = new ReviewTask(skillVersionId, namespaceId, userId);
+        ReviewTask task = new ReviewTask(skillVersionId, skill.getNamespaceId(), userId);
         try {
             return reviewTaskRepository.save(task);
         } catch (DataIntegrityViolationException e) {

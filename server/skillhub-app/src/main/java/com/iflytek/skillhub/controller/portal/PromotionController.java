@@ -4,10 +4,13 @@ import com.iflytek.skillhub.auth.rbac.RbacService;
 import com.iflytek.skillhub.controller.BaseApiController;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import com.iflytek.skillhub.domain.review.PromotionRequest;
 import com.iflytek.skillhub.domain.review.PromotionRequestRepository;
 import com.iflytek.skillhub.domain.review.PromotionService;
+import com.iflytek.skillhub.domain.review.ReviewPermissionChecker;
 import com.iflytek.skillhub.domain.review.ReviewTaskStatus;
+import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.skill.Skill;
 import com.iflytek.skillhub.domain.skill.SkillRepository;
 import com.iflytek.skillhub.domain.skill.SkillVersion;
@@ -19,6 +22,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -32,6 +36,7 @@ public class PromotionController extends BaseApiController {
     private final NamespaceRepository namespaceRepository;
     private final UserAccountRepository userAccountRepository;
     private final RbacService rbacService;
+    private final ReviewPermissionChecker permissionChecker;
 
     public PromotionController(PromotionService promotionService,
                                PromotionRequestRepository promotionRequestRepository,
@@ -40,6 +45,7 @@ public class PromotionController extends BaseApiController {
                                NamespaceRepository namespaceRepository,
                                UserAccountRepository userAccountRepository,
                                RbacService rbacService,
+                               ReviewPermissionChecker permissionChecker,
                                ApiResponseFactory responseFactory) {
         super(responseFactory);
         this.promotionService = promotionService;
@@ -49,15 +55,18 @@ public class PromotionController extends BaseApiController {
         this.namespaceRepository = namespaceRepository;
         this.userAccountRepository = userAccountRepository;
         this.rbacService = rbacService;
+        this.permissionChecker = permissionChecker;
     }
 
     @PostMapping
     public ApiResponse<PromotionResponseDto> submitPromotion(
             @RequestBody PromotionRequestDto request,
-            @RequestAttribute("userId") String userId) {
+            @RequestAttribute("userId") String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
         PromotionRequest promotion = promotionService.submitPromotion(
                 request.sourceSkillId(), request.sourceVersionId(),
-                request.targetNamespaceId(), userId);
+                request.targetNamespaceId(), userId,
+                userNsRoles != null ? userNsRoles : Map.of());
         return ok("response.success.create", toResponse(promotion));
     }
 
@@ -89,9 +98,8 @@ public class PromotionController extends BaseApiController {
             @RequestParam(defaultValue = "20") int size,
             @RequestAttribute("userId") String userId) {
         Set<String> platformRoles = rbacService.getUserRoleCodes(userId);
-        boolean hasAdminRole = platformRoles.contains("SKILL_ADMIN") || platformRoles.contains("SUPER_ADMIN");
-        if (!hasAdminRole) {
-            return ok("response.success.read", PageResponse.from(Page.empty()));
+        if (!permissionChecker.canListPendingPromotions(platformRoles)) {
+            throw new DomainForbiddenException("promotion.no_permission");
         }
         Page<PromotionRequest> requests = promotionRequestRepository.findByStatus(
                 ReviewTaskStatus.PENDING, PageRequest.of(page, size));
@@ -99,8 +107,14 @@ public class PromotionController extends BaseApiController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<PromotionResponseDto> getPromotionDetail(@PathVariable Long id) {
+    public ApiResponse<PromotionResponseDto> getPromotionDetail(
+            @PathVariable Long id,
+            @RequestAttribute("userId") String userId) {
         PromotionRequest promotion = promotionRequestRepository.findById(id).orElseThrow();
+        Set<String> platformRoles = rbacService.getUserRoleCodes(userId);
+        if (!permissionChecker.canReadPromotion(promotion, userId, platformRoles)) {
+            throw new DomainForbiddenException("promotion.no_permission");
+        }
         return ok("response.success.read", toResponse(promotion));
     }
 
