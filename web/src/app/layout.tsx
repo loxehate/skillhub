@@ -1,9 +1,19 @@
 import { Suspense } from 'react'
-import { Outlet, Link } from '@tanstack/react-router'
+import { Outlet, Link, useRouterState } from '@tanstack/react-router'
 import { useAuth } from '@/features/auth/use-auth'
 
 export function Layout() {
   const { user, isLoading } = useAuth()
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isLanding = pathname === '/'
+
+  if (isLanding) {
+    return (
+      <Suspense fallback={null}>
+        <Outlet />
+      </Suspense>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background bg-dots relative">
