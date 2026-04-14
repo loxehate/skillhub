@@ -17,6 +17,7 @@ RUN chmod +x mvnw
 RUN ./mvnw dependency:go-offline -B
 
 COPY . .
+RUN chmod +x mvnw
 RUN ./mvnw package -DskipTests -B
 
 # ---- Runtime Stage ----
