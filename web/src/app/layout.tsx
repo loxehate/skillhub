@@ -50,6 +50,8 @@ export function Layout() {
     { label: t('nav.publish'), to: '/dashboard/publish', auth: true },
     { label: t('nav.search'), to: '/search' },
     { label: t('nav.dashboard'), to: '/dashboard', auth: true },
+    { label: t('nav.tickets'), to: '/dashboard/tickets', auth: true },
+    { label: t('nav.teams'), to: '/dashboard/teams', auth: true },
     { label: t('nav.mySkills'), to: '/dashboard/skills', auth: true },
   ]
 

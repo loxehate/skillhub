@@ -129,6 +129,69 @@ export interface NamespaceCandidateUser {
   status: string
 }
 
+// Ticket & team types
+export type TicketMode = 'BOUNTY' | 'ASSIGN' | string
+export type TicketStatus =
+  | 'OPEN'
+  | 'CLAIMED'
+  | 'IN_PROGRESS'
+  | 'TEAM_REVIEW'
+  | 'SUBMITTED'
+  | 'REJECTED'
+  | 'DONE'
+  | 'FAILED'
+  | string
+
+export interface Ticket {
+  id: number
+  title: string
+  description?: string
+  mode: TicketMode
+  reward?: number
+  status: TicketStatus
+  creatorId: string
+  namespaceId: number
+  targetTeamId?: number | null
+  targetUserId?: string | null
+  submitSkillId?: number | null
+  submitSkillVersionId?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TicketCreateRequest {
+  title: string
+  description?: string
+  mode: TicketMode
+  reward?: number | null
+  namespace: string
+  targetTeamId?: number | null
+  targetUserId?: string | null
+}
+
+export interface TicketSubmitSkillResponse {
+  ticketId: number
+  publish: PublishResult
+}
+
+export type TeamRole = 'ADMIN' | 'DEV' | string
+
+export interface Team {
+  id: number
+  name: string
+  ownerId: string
+  namespaceId: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TeamMember {
+  teamId: number
+  userId: string
+  role: TeamRole
+  createdAt: string
+}
+
 // Skill types
 export interface SkillSummary {
   id: number

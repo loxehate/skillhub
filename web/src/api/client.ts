@@ -38,6 +38,12 @@ import type {
   AdminLabelInput,
   LabelDefinition,
   LabelItem,
+  Ticket,
+  TicketCreateRequest,
+  TicketSubmitSkillResponse,
+  Team,
+  TeamMember,
+  TeamRole,
 } from './types'
 import { ApiError } from '@/shared/lib/api-error'
 import i18n from '@/i18n/config'
@@ -697,6 +703,118 @@ export const namespaceApi = {
     await fetchJson<void>(`${WEB_API_PREFIX}/namespaces/${normalizeNamespaceSlug(slug)}/members/${encodeURIComponent(userId)}`, {
       method: 'DELETE',
       headers: await ensureCsrfHeaders(),
+    })
+  },
+}
+
+export const ticketApi = {
+  async list(params?: { namespace?: string }): Promise<Ticket[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.namespace) {
+      searchParams.set('namespace', params.namespace)
+    }
+    const query = searchParams.toString()
+    return fetchJson<Ticket[]>(`${WEB_API_PREFIX}/tickets${query ? `?${query}` : ''}`)
+  },
+
+  async get(ticketId: number): Promise<Ticket> {
+    return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}`)
+  },
+
+  async create(request: TicketCreateRequest): Promise<Ticket> {
+    return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(request),
+    })
+  },
+
+  async claim(ticketId: number, teamId?: number | null): Promise<Ticket> {
+    return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}/claim`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(teamId ? { teamId } : {}),
+    })
+  },
+
+  async start(ticketId: number): Promise<Ticket> {
+    return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}/start`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders(),
+    })
+  },
+
+  async submitForReview(ticketId: number): Promise<Ticket> {
+    return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}/review`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders(),
+    })
+  },
+
+  async reject(ticketId: number, comment?: string): Promise<Ticket> {
+    return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}/reject`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(comment ? { comment } : {}),
+    })
+  },
+
+  async submitSkill(params: {
+    ticketId: number
+    file: File
+    visibility: string
+    confirmWarnings?: boolean
+  }): Promise<TicketSubmitSkillResponse> {
+    const formData = new FormData()
+    formData.append('file', params.file)
+    formData.append('visibility', params.visibility)
+    if (params.confirmWarnings) {
+      formData.append('confirmWarnings', 'true')
+    }
+    return fetchJson<TicketSubmitSkillResponse>(`${WEB_API_PREFIX}/tickets/${params.ticketId}/submit-skill`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders(),
+      body: formData,
+    })
+  },
+}
+
+export const teamApi = {
+  async list(namespaceId: number): Promise<Team[]> {
+    return fetchJson<Team[]>(`${WEB_API_PREFIX}/teams?namespaceId=${encodeURIComponent(namespaceId)}`)
+  },
+
+  async get(teamId: number): Promise<Team> {
+    return fetchJson<Team>(`${WEB_API_PREFIX}/teams/${teamId}`)
+  },
+
+  async create(request: { name: string; namespace: string }): Promise<Team> {
+    return fetchJson<Team>(`${WEB_API_PREFIX}/teams`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(request),
+    })
+  },
+
+  async listMembers(teamId: number): Promise<TeamMember[]> {
+    return fetchJson<TeamMember[]>(`${WEB_API_PREFIX}/teams/${teamId}/members`)
+  },
+
+  async addMember(teamId: number, request: { userId: string; role: TeamRole }): Promise<TeamMember> {
+    return fetchJson<TeamMember>(`${WEB_API_PREFIX}/teams/${teamId}/members`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(request),
     })
   },
 }
