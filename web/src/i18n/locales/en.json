@@ -100,9 +100,9 @@
     "footerCommunity": "Community",
     "quickStart": {
       "title": "Quick Start",
-      "subtitle": "快速开始",
+      "subtitle": "Quick Start",
       "description": "Choose how you want to work, then copy the setup instruction and continue",
-      "tip": "💡 Tip: Visit the skill detail page for one-click install commands with environment variables",
+      "tip": "Tip: Visit the skill detail page for one-click install commands with environment variables",
       "tabs": {
         "agent": "I am Agent",
         "human": "I am Human"
@@ -143,10 +143,10 @@
     "popularDescription": "Most popular skills in the community",
     "latestTitle": "Latest Releases",
     "latestDescription": "Freshly published skills",
-    "viewAll": "View All →",
+    "viewAll": "View All ->",
     "quickStart": {
       "title": "Quick Start",
-      "subtitle": "快速开始",
+      "subtitle": "Quick Start",
       "description": "Get started with SkillHub in just a few simple steps",
       "tip": "💡 Tip: Visit the skill detail page for one-click install commands with environment variables",
       "steps": {
