@@ -8,6 +8,7 @@ import { Label } from '@/shared/ui/label'
 import { Textarea } from '@/shared/ui/textarea'
 import { DashboardPageHeader } from '@/shared/components/dashboard-page-header'
 import { ConfirmDialog } from '@/shared/components/confirm-dialog'
+import { EditTicketDialog } from '@/features/ticket/edit-ticket-dialog'
 import { UploadZone } from '@/features/publish/upload-zone'
 import { toast } from '@/shared/lib/toast'
 import { formatLocalDateTime } from '@/shared/lib/date-time'
@@ -21,11 +22,13 @@ import {
 import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
 import {
   useCancelTicket,
+  useAddTicketComment,
   useClaimTicket,
   useCompleteTicketReview,
   useRejectTicket,
   useStartTicket,
   useSubmitTicketSkill,
+  useTicketComments,
   useTicketDetail,
 } from '@/shared/hooks/use-ticket-queries'
 import {
@@ -56,8 +59,10 @@ export function TicketDetailPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const { data: ticket, isLoading } = useTicketDetail(ticketId)
+  const { data: comments } = useTicketComments(ticketId)
   const { data: namespaces } = useMyNamespaces()
   const cancelMutation = useCancelTicket()
+  const addCommentMutation = useAddTicketComment()
   const claimMutation = useClaimTicket()
   const completeReviewMutation = useCompleteTicketReview()
   const startMutation = useStartTicket()
@@ -70,6 +75,7 @@ export function TicketDetailPage() {
   const [confirmAction, setConfirmAction] = useState<null | 'claim' | 'start' | 'review'>(null)
   const [warningDialogOpen, setWarningDialogOpen] = useState(false)
   const [precheckWarnings, setPrecheckWarnings] = useState<string[]>([])
+  const [commentDraft, setCommentDraft] = useState('')
 
   const namespaceInfo = useMemo(() => {
     if (!ticket || !namespaces) {
@@ -85,9 +91,21 @@ export function TicketDetailPage() {
   const canClaim = ticket?.status === 'OPEN'
   const canStart = ticket?.status === 'CLAIMED'
   const canSubmitSkill = ticket?.status === 'IN_PROGRESS'
-  const canCompleteReview = ticket?.status === 'TEAM_REVIEW'
-  const canReject = ticket?.status === 'TEAM_REVIEW'
+  const canReviewPermission = user?.platformRoles?.includes('SUPER_ADMIN')
+    || user?.platformRoles?.includes('USER_ADMIN')
+    || namespaceInfo?.currentUserRole === 'OWNER'
+    || namespaceInfo?.currentUserRole === 'ADMIN'
+  const canCompleteReview = ticket?.status === 'TEAM_REVIEW' && canReviewPermission
+  const canReject = ticket?.status === 'TEAM_REVIEW' && canReviewPermission
   const canCancel = !!ticket && ticket.status === 'OPEN' && user?.userId === ticket.creatorId
+  const canManageOpen = !!ticket && ticket.status === 'OPEN' && (
+    user?.userId === ticket.creatorId
+    || user?.platformRoles?.includes('USER_ADMIN')
+    || user?.platformRoles?.includes('SUPER_ADMIN')
+    || namespaceInfo?.currentUserRole === 'OWNER'
+    || namespaceInfo?.currentUserRole === 'ADMIN'
+  )
+  const canOpenSkillReview = ticket?.status === 'SUBMITTED' && !!ticket.skillReviewTaskId
 
   const handleClaim = async () => {
     if (!ticket) return
@@ -127,6 +145,20 @@ export function TicketDetailPage() {
       toast.success(t('tickets.completeSuccess'))
     } catch (error) {
       toast.error(t('tickets.completeError'), error instanceof Error ? error.message : '')
+    }
+  }
+
+  const handleAddComment = async () => {
+    if (!ticket || !commentDraft.trim()) {
+      toast.error(t('tickets.commentRequired'))
+      return
+    }
+    try {
+      await addCommentMutation.mutateAsync({ ticketId: ticket.id, content: commentDraft.trim() })
+      setCommentDraft('')
+      toast.success(t('tickets.commentSuccess'))
+    } catch (error) {
+      toast.error(t('tickets.commentError'), error instanceof Error ? error.message : '')
     }
   }
 
@@ -222,9 +254,18 @@ export function TicketDetailPage() {
         title={t('tickets.detailTitle')}
         subtitle={t('tickets.detailSubtitle')}
         actions={(
-          <Button variant="outline" onClick={() => navigate({ to: '/dashboard/tickets' })}>
-            {t('tickets.backToList')}
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            {canManageOpen && ticket && (
+              <EditTicketDialog ticket={ticket}>
+                <Button variant="outline">
+                  {t('tickets.editAction')}
+                </Button>
+              </EditTicketDialog>
+            )}
+            <Button variant="outline" onClick={() => navigate({ to: '/dashboard/tickets' })}>
+              {t('tickets.backToList')}
+            </Button>
+          </div>
         )}
       />
 
@@ -257,7 +298,7 @@ export function TicketDetailPage() {
           {ticket.reward != null && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">{t('tickets.rewardLabel')}</Label>
-              <p className="font-semibold">{ticket.reward}</p>
+              <p className="font-semibold">{ticket.reward}{t('tickets.amountUnit')}</p>
             </div>
           )}
           <div className="space-y-1">
@@ -359,6 +400,18 @@ export function TicketDetailPage() {
           </div>
         )}
 
+        {canOpenSkillReview && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{t('tickets.skillReviewHint')}</p>
+            <Button
+              variant="outline"
+              onClick={() => navigate({ to: `/dashboard/reviews/${ticket.skillReviewTaskId}` })}
+            >
+              {t('tickets.skillReviewAction')}
+            </Button>
+          </div>
+        )}
+
         {canCompleteReview && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">{t('tickets.completeHint')}</p>
@@ -397,6 +450,42 @@ export function TicketDetailPage() {
             {t('tickets.noActions')}
           </div>
         )}
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold font-heading">{t('tickets.commentsTitle')}</h3>
+          <p className="text-sm text-muted-foreground">{t('tickets.commentsSubtitle')}</p>
+        </div>
+        <div className="space-y-3">
+          <Textarea
+            value={commentDraft}
+            onChange={(event) => setCommentDraft(event.target.value)}
+            placeholder={t('tickets.commentPlaceholder')}
+            rows={4}
+          />
+          <div className="flex justify-end">
+            <Button onClick={handleAddComment} disabled={addCommentMutation.isPending || !commentDraft.trim()}>
+              {addCommentMutation.isPending ? t('tickets.commentSubmitting') : t('tickets.commentAction')}
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-3">
+          {(comments ?? []).length === 0 && (
+            <div className="rounded-xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
+              {t('tickets.commentsEmpty')}
+            </div>
+          )}
+          {(comments ?? []).map((item) => (
+            <div key={item.id} className="rounded-xl border border-border/60 bg-secondary/20 p-4 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="font-semibold">{item.authorId}</span>
+                <span className="text-muted-foreground">{formatDate(item.createdAt)}</span>
+              </div>
+              <p className="text-sm text-foreground/90 whitespace-pre-wrap">{item.content}</p>
+            </div>
+          ))}
+        </div>
       </Card>
 
       <ConfirmDialog

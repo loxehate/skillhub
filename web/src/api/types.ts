@@ -151,8 +151,10 @@ export interface Ticket {
   status: TicketStatus
   creatorId: string
   namespaceId: number
+  targetTeamId?: number | null
   submitSkillId?: number | null
   submitSkillVersionId?: number | null
+  skillReviewTaskId?: number | null
   createdAt: string
   updatedAt: string
 }
@@ -163,6 +165,25 @@ export interface TicketCreateRequest {
   mode: TicketMode
   reward?: number | null
   namespace: string
+  targetTeamId?: number | null
+}
+
+export interface TicketUpdateRequest {
+  title: string
+  description?: string
+  mode: TicketMode
+  reward?: number | null
+  namespace: string
+  targetTeamId?: number | null
+}
+
+export interface TicketComment {
+  id: number
+  ticketId: number
+  authorId: string
+  content: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface TicketSubmitSkillResponse {

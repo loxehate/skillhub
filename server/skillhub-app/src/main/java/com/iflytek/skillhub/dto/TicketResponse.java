@@ -12,8 +12,10 @@ public record TicketResponse(
         String status,
         String creatorId,
         Long namespaceId,
+        Long targetTeamId,
         Long submitSkillId,
         Long submitSkillVersionId,
+        Long skillReviewTaskId,
         Instant createdAt,
         Instant updatedAt
 ) {}

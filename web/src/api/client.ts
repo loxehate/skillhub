@@ -39,8 +39,10 @@ import type {
   LabelDefinition,
   LabelItem,
   Ticket,
+  TicketComment,
   TicketCreateRequest,
   TicketSubmitSkillResponse,
+  TicketUpdateRequest,
   Team,
   TeamMember,
   TeamRole,
@@ -738,6 +740,16 @@ export const ticketApi = {
       })
     },
 
+  async update(ticketId: number, request: TicketUpdateRequest): Promise<Ticket> {
+    return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}`, {
+      method: 'PUT',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(request),
+    })
+  },
+
   async claim(ticketId: number, teamId?: number | null): Promise<Ticket> {
       return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}/claim`, {
         method: 'POST',
@@ -788,6 +800,20 @@ export const ticketApi = {
       method: 'POST',
       headers: await ensureCsrfHeaders(),
       body: formData,
+    })
+  },
+
+  async listComments(ticketId: number): Promise<TicketComment[]> {
+    return fetchJson<TicketComment[]>(`${WEB_API_PREFIX}/tickets/${ticketId}/comments`)
+  },
+
+  async addComment(ticketId: number, content: string): Promise<TicketComment> {
+    return fetchJson<TicketComment>(`${WEB_API_PREFIX}/tickets/${ticketId}/comments`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify({ content }),
     })
   },
 }

@@ -13,6 +13,7 @@ import java.util.Optional;
 public interface NamespaceMemberRepository {
     Optional<NamespaceMember> findByNamespaceIdAndUserId(Long namespaceId, String userId);
     List<NamespaceMember> findByUserId(String userId);
+    List<NamespaceMember> findByNamespaceId(Long namespaceId);
     Page<NamespaceMember> findByNamespaceId(Long namespaceId, Pageable pageable);
     List<NamespaceMember> findByNamespaceIdAndRoleIn(Long namespaceId, Collection<NamespaceRole> roles);
     NamespaceMember save(NamespaceMember member);

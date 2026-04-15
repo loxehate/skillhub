@@ -3,6 +3,8 @@ package com.iflytek.skillhub.domain.ticket;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.review.ReviewTaskRepository;
+import com.iflytek.skillhub.domain.review.ReviewTaskStatus;
 import com.iflytek.skillhub.domain.event.TicketClaimedEvent;
 import com.iflytek.skillhub.domain.event.TicketClosedEvent;
 import com.iflytek.skillhub.domain.event.TicketCreatedEvent;
@@ -12,6 +14,8 @@ import com.iflytek.skillhub.domain.event.TicketSkillSubmittedEvent;
 import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
+import com.iflytek.skillhub.domain.skill.SkillRepository;
+import com.iflytek.skillhub.domain.skill.service.SkillHardDeleteService;
 import com.iflytek.skillhub.domain.skill.service.SkillPublishService;
 import com.iflytek.skillhub.domain.skill.validation.PackageEntry;
 import java.util.ArrayList;
@@ -29,25 +33,37 @@ public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final TicketClaimRepository ticketClaimRepository;
+    private final TicketCommentRepository ticketCommentRepository;
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final NamespaceRepository namespaceRepository;
+    private final ReviewTaskRepository reviewTaskRepository;
+    private final SkillRepository skillRepository;
+    private final SkillHardDeleteService skillHardDeleteService;
     private final SkillPublishService skillPublishService;
     private final ApplicationEventPublisher eventPublisher;
     private final TicketPermissionChecker permissionChecker = new TicketPermissionChecker();
 
     public TicketService(TicketRepository ticketRepository,
                          TicketClaimRepository ticketClaimRepository,
+                         TicketCommentRepository ticketCommentRepository,
                          TeamRepository teamRepository,
                          TeamMemberRepository teamMemberRepository,
                          NamespaceRepository namespaceRepository,
+                         ReviewTaskRepository reviewTaskRepository,
+                         SkillRepository skillRepository,
+                         SkillHardDeleteService skillHardDeleteService,
                          SkillPublishService skillPublishService,
                          ApplicationEventPublisher eventPublisher) {
         this.ticketRepository = ticketRepository;
         this.ticketClaimRepository = ticketClaimRepository;
+        this.ticketCommentRepository = ticketCommentRepository;
         this.teamRepository = teamRepository;
         this.teamMemberRepository = teamMemberRepository;
         this.namespaceRepository = namespaceRepository;
+        this.reviewTaskRepository = reviewTaskRepository;
+        this.skillRepository = skillRepository;
+        this.skillHardDeleteService = skillHardDeleteService;
         this.skillPublishService = skillPublishService;
         this.eventPublisher = eventPublisher;
     }
@@ -58,24 +74,31 @@ public class TicketService {
                                TicketMode mode,
                                java.math.BigDecimal reward,
                                String namespaceSlug,
+                               Long targetTeamId,
                                String creatorId,
                                Map<Long, NamespaceRole> userNsRoles,
                                Set<String> platformRoles) {
         String resolvedNamespaceSlug = (namespaceSlug == null || namespaceSlug.isBlank()) ? "global" : namespaceSlug.trim();
-        Namespace namespace = namespaceRepository.findBySlug(resolvedNamespaceSlug)
-                .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", resolvedNamespaceSlug));
+        Namespace namespace = resolveNamespace(resolvedNamespaceSlug);
         NamespaceRole namespaceRole = resolveNamespaceRole(namespace.getId(), userNsRoles);
         if (!permissionChecker.canCreate(platformRoles, namespaceRole)) {
             throw new DomainForbiddenException("error.ticket.noPermission");
         }
+        validateReward(reward);
 
-        Ticket ticket = new Ticket(title, description, mode, reward, creatorId, namespace.getId(), null, null);
+        if (targetTeamId != null) {
+            validateTargetTeam(namespace.getId(), targetTeamId);
+        }
+
+        Ticket ticket = new Ticket(title, description, mode, reward, creatorId, namespace.getId(), targetTeamId, null);
         Ticket saved = ticketRepository.save(ticket);
         eventPublisher.publishEvent(new TicketCreatedEvent(
                 saved.getId(),
                 saved.getTitle(),
                 saved.getNamespaceId(),
-                creatorId
+                creatorId,
+                saved.getMode().name(),
+                saved.getTargetTeamId()
         ));
         return saved;
     }
@@ -114,6 +137,49 @@ public class TicketService {
                 teamId
         ));
         return saved;
+    }
+
+    @Transactional
+    public Ticket updateTicket(Long ticketId,
+                               String title,
+                               String description,
+                               TicketMode mode,
+                               java.math.BigDecimal reward,
+                               String namespaceSlug,
+                               Long targetTeamId,
+                               String userId,
+                               Map<Long, NamespaceRole> userNsRoles,
+                               Set<String> platformRoles) {
+        Ticket ticket = getTicket(ticketId);
+        ensureStatus(ticket, TicketStatus.OPEN);
+        NamespaceRole currentNamespaceRole = resolveNamespaceRole(ticket.getNamespaceId(), userNsRoles);
+        boolean canManage = permissionChecker.canManage(platformRoles, currentNamespaceRole);
+        if (!ticket.getCreatorId().equals(userId) && !canManage) {
+            throw new DomainForbiddenException("error.ticket.noPermission");
+        }
+
+        String resolvedNamespaceSlug = (namespaceSlug == null || namespaceSlug.isBlank()) ? "global" : namespaceSlug.trim();
+        Namespace namespace = resolveNamespace(resolvedNamespaceSlug);
+        NamespaceRole targetNamespaceRole = resolveNamespaceRole(namespace.getId(), userNsRoles);
+        if (!permissionChecker.canCreate(platformRoles, targetNamespaceRole)) {
+            throw new DomainForbiddenException("error.ticket.noPermission");
+        }
+        validateReward(reward);
+
+        if (mode == TicketMode.ASSIGN && targetTeamId == null) {
+            throw new DomainBadRequestException("error.ticket.assign.teamRequired");
+        }
+        if (targetTeamId != null) {
+            validateTargetTeam(namespace.getId(), targetTeamId);
+        }
+
+        ticket.setTitle(title);
+        ticket.setDescription(description);
+        ticket.setMode(mode);
+        ticket.setReward(reward);
+        ticket.setNamespaceId(namespace.getId());
+        ticket.setTargetTeamId(mode == TicketMode.ASSIGN ? targetTeamId : null);
+        return ticketRepository.save(ticket);
     }
 
     @Transactional
@@ -164,7 +230,17 @@ public class TicketService {
         if (!permissionChecker.canReject(platformRoles, namespaceRole, teamRole)) {
             throw new DomainForbiddenException("error.ticket.noPermission");
         }
-        ticket.setStatus(TicketStatus.REJECTED);
+        if (ticket.getSubmitSkillId() != null) {
+            skillRepository.findById(ticket.getSubmitSkillId()).ifPresent(skill -> {
+                String namespaceSlug = namespaceRepository.findById(skill.getNamespaceId())
+                        .map(Namespace::getSlug)
+                        .orElse("global");
+                skillHardDeleteService.hardDeleteSkill(skill, namespaceSlug, userId, null, null);
+            });
+            ticket.setSubmitSkillId(null);
+            ticket.setSubmitSkillVersionId(null);
+        }
+        ticket.setStatus(TicketStatus.CLAIMED);
         Ticket saved = ticketRepository.save(ticket);
         eventPublisher.publishEvent(new TicketRejectedEvent(
                 saved.getId(),
@@ -250,6 +326,7 @@ public class TicketService {
                         saved.getTitle(),
                         saved.getNamespaceId(),
                         saved.getCreatorId(),
+                        null,
                         saved.getStatus().name(),
                         skillId,
                         versionId
@@ -272,11 +349,15 @@ public class TicketService {
         }
         ticket.setStatus(TicketStatus.DONE);
         Ticket saved = ticketRepository.save(ticket);
+        String claimerId = ticketClaimRepository.findByTicketIdAndStatus(saved.getId(), TicketClaimStatus.ACCEPTED)
+                .map(TicketClaim::getUserId)
+                .orElse(null);
         eventPublisher.publishEvent(new TicketClosedEvent(
                 saved.getId(),
                 saved.getTitle(),
                 saved.getNamespaceId(),
                 saved.getCreatorId(),
+                claimerId,
                 saved.getStatus().name(),
                 saved.getSubmitSkillId(),
                 saved.getSubmitSkillVersionId()
@@ -347,7 +428,11 @@ public class TicketService {
                              String userId,
                              Map<Long, NamespaceRole> userNsRoles,
                              Set<String> platformRoles) {
-        Ticket ticket = getTicket(ticketId);
+        Optional<Ticket> existingTicket = ticketRepository.findById(ticketId);
+        if (existingTicket.isEmpty()) {
+            return;
+        }
+        Ticket ticket = existingTicket.get();
         NamespaceRole namespaceRole = resolveNamespaceRole(ticket.getNamespaceId(), userNsRoles);
         boolean canManage = permissionChecker.canManage(platformRoles, namespaceRole);
         boolean isCreator = ticket.getCreatorId().equals(userId);
@@ -356,6 +441,25 @@ public class TicketService {
         }
         ensureStatus(ticket, TicketStatus.OPEN);
         ticketRepository.delete(ticket);
+    }
+
+    @Transactional
+    public TicketComment addComment(Long ticketId,
+                                    String content,
+                                    String userId,
+                                    Map<Long, NamespaceRole> userNsRoles,
+                                    Set<String> platformRoles) {
+        Ticket ticket = getTicketForView(ticketId, userId, userNsRoles, platformRoles);
+        TicketComment comment = new TicketComment(ticket.getId(), userId, content.trim());
+        return ticketCommentRepository.save(comment);
+    }
+
+    public List<TicketComment> listComments(Long ticketId,
+                                            String userId,
+                                            Map<Long, NamespaceRole> userNsRoles,
+                                            Set<String> platformRoles) {
+        Ticket ticket = getTicketForView(ticketId, userId, userNsRoles, platformRoles);
+        return ticketCommentRepository.findByTicketIdOrderByCreatedAtAsc(ticket.getId());
     }
 
     private Ticket getTicket(Long ticketId) {
@@ -442,5 +546,36 @@ public class TicketService {
             return ticketRepository.findBySubmitSkillId(skillId);
         }
         return Optional.empty();
+    }
+
+    public Long findPendingReviewTaskId(Long skillVersionId) {
+        if (skillVersionId == null) {
+            return null;
+        }
+        return reviewTaskRepository.findBySkillVersionIdAndStatus(skillVersionId, ReviewTaskStatus.PENDING)
+                .map(task -> task.getId())
+                .orElse(null);
+    }
+
+    private Namespace resolveNamespace(String namespaceSlug) {
+        return namespaceRepository.findBySlug(namespaceSlug)
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", namespaceSlug));
+    }
+
+    private void validateTargetTeam(Long namespaceId, Long targetTeamId) {
+        Team team = teamRepository.findById(targetTeamId)
+                .orElseThrow(() -> new DomainBadRequestException("error.team.notFound", targetTeamId));
+        if (!team.getNamespaceId().equals(namespaceId)) {
+            throw new DomainBadRequestException("error.ticket.teamNamespaceMismatch", targetTeamId);
+        }
+    }
+
+    private void validateReward(java.math.BigDecimal reward) {
+        if (reward == null) {
+            return;
+        }
+        if (reward.scale() > 0 && reward.stripTrailingZeros().scale() > 0) {
+            throw new DomainBadRequestException("error.ticket.reward.integerOnly");
+        }
     }
 }

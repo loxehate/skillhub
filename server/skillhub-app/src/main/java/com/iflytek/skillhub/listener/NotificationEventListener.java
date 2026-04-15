@@ -199,6 +199,11 @@ public class NotificationEventListener {
         String json = toJson(body);
 
         Set<String> recipients = new LinkedHashSet<>();
+        if ("ASSIGN".equals(event.mode()) && event.targetTeamId() != null) {
+            recipients.addAll(recipientResolver.resolveTeamMembers(event.targetTeamId()));
+        } else {
+            recipients.addAll(recipientResolver.resolveNamespaceMembers(event.namespaceId()));
+        }
         recipients.addAll(recipientResolver.resolveNamespaceAdmins(event.namespaceId()));
         recipients.addAll(recipientResolver.resolvePlatformSkillAdmins());
         for (String userId : recipients) {
@@ -286,6 +291,10 @@ public class NotificationEventListener {
         String json = toJson(body);
         dispatcher.dispatch(event.creatorId(), NotificationCategory.TICKET,
                 "TICKET_CLOSED", title, json, "TICKET", event.ticketId());
+        if (event.claimerId() != null && !event.claimerId().equals(event.creatorId())) {
+            dispatcher.dispatch(event.claimerId(), NotificationCategory.TICKET,
+                    "TICKET_CLOSED", title, json, "TICKET", event.ticketId());
+        }
     }
 
     // --- helpers ---

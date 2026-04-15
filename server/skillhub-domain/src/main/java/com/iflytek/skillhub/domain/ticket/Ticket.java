@@ -148,6 +148,30 @@ public class Ticket {
         this.status = status;
     }
 
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setMode(TicketMode mode) {
+        this.mode = mode;
+    }
+
+    public void setReward(BigDecimal reward) {
+        this.reward = reward;
+    }
+
+    public void setNamespaceId(Long namespaceId) {
+        this.namespaceId = namespaceId;
+    }
+
+    public void setTargetTeamId(Long targetTeamId) {
+        this.targetTeamId = targetTeamId;
+    }
+
     public void setSubmitSkillId(Long submitSkillId) {
         this.submitSkillId = submitSkillId;
     }

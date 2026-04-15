@@ -35,6 +35,16 @@ public class RecipientResolver {
                 .toList();
     }
 
+    public List<String> resolveNamespaceMembers(Long namespaceId) {
+        return namespaceMemberRepository.findByNamespaceId(namespaceId)
+                .stream()
+                .map(NamespaceMember::getUserId)
+                .collect(java.util.stream.Collectors.collectingAndThen(
+                        java.util.stream.Collectors.toCollection(LinkedHashSet::new),
+                        List::copyOf
+                ));
+    }
+
     public List<String> resolvePlatformSkillAdmins() {
         return userRoleBindingRepository.findByRole_CodeIn(Set.of("SKILL_ADMIN", "SUPER_ADMIN"))
                 .stream()

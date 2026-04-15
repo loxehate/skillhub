@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Ticket, TicketCreateRequest, TicketSubmitSkillResponse } from '@/api/types'
+import type { Ticket, TicketComment, TicketCreateRequest, TicketSubmitSkillResponse, TicketUpdateRequest } from '@/api/types'
 import { ticketApi } from '@/api/client'
 
 async function listTickets(namespace?: string): Promise<Ticket[]> {
@@ -12,6 +12,14 @@ async function getTicket(ticketId: number): Promise<Ticket> {
 
 async function createTicket(request: TicketCreateRequest): Promise<Ticket> {
   return ticketApi.create(request)
+}
+
+async function updateTicket(ticketId: number, request: TicketUpdateRequest): Promise<Ticket> {
+  return ticketApi.update(ticketId, request)
+}
+
+async function listTicketComments(ticketId: number): Promise<TicketComment[]> {
+  return ticketApi.listComments(ticketId)
 }
 
 export function useTickets(namespace?: string) {
@@ -39,6 +47,17 @@ export function useCreateTicket() {
   })
 }
 
+export function useUpdateTicket() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, request }: { ticketId: number; request: TicketUpdateRequest }) => updateTicket(ticketId, request),
+    onSuccess: (ticket) => {
+      queryClient.setQueryData(['tickets', ticket.id], ticket)
+      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+    },
+  })
+}
+
 export function useCancelTicket() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -46,6 +65,24 @@ export function useCancelTicket() {
     onSuccess: (_data, ticketId) => {
       queryClient.removeQueries({ queryKey: ['tickets', ticketId], exact: true })
       queryClient.invalidateQueries({ queryKey: ['tickets'] })
+    },
+  })
+}
+
+export function useTicketComments(ticketId?: number) {
+  return useQuery({
+    queryKey: ['tickets', ticketId, 'comments'],
+    queryFn: () => listTicketComments(ticketId as number),
+    enabled: Number.isFinite(ticketId),
+  })
+}
+
+export function useAddTicketComment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ticketId, content }: { ticketId: number; content: string }) => ticketApi.addComment(ticketId, content),
+    onSuccess: (comment) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets', comment.ticketId, 'comments'] })
     },
   })
 }

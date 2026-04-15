@@ -16,10 +16,13 @@ import com.iflytek.skillhub.dto.ApiResponse;
 import com.iflytek.skillhub.dto.ApiResponseFactory;
 import com.iflytek.skillhub.dto.PublishResponse;
 import com.iflytek.skillhub.dto.TicketClaimRequest;
+import com.iflytek.skillhub.dto.TicketCommentRequest;
+import com.iflytek.skillhub.dto.TicketCommentResponse;
 import com.iflytek.skillhub.dto.TicketCreateRequest;
 import com.iflytek.skillhub.dto.TicketRejectRequest;
 import com.iflytek.skillhub.dto.TicketResponse;
 import com.iflytek.skillhub.dto.TicketSubmitSkillResponse;
+import com.iflytek.skillhub.dto.TicketUpdateRequest;
 import com.iflytek.skillhub.metrics.SkillHubMetrics;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -70,6 +73,7 @@ public class TicketController extends BaseApiController {
                 mode,
                 request.reward(),
                 request.namespace(),
+                request.targetTeamId(),
                 principal.userId(),
                 userNsRoles,
                 principal.platformRoles()
@@ -115,6 +119,28 @@ public class TicketController extends BaseApiController {
             @AuthenticationPrincipal PlatformPrincipal principal,
             @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
         Ticket ticket = ticketService.startProgress(ticketId, principal.userId(), userNsRoles, principal.platformRoles());
+        return ok("response.success.updated", toResponse(ticket));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/{ticketId}")
+    public ApiResponse<TicketResponse> updateTicket(
+            @PathVariable Long ticketId,
+            @Valid @RequestBody TicketUpdateRequest request,
+            @AuthenticationPrincipal PlatformPrincipal principal,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+        TicketMode mode = parseMode(request.mode());
+        Ticket ticket = ticketService.updateTicket(
+                ticketId,
+                request.title(),
+                request.description(),
+                mode,
+                request.reward(),
+                request.namespace(),
+                request.targetTeamId(),
+                principal.userId(),
+                userNsRoles,
+                principal.platformRoles()
+        );
         return ok("response.success.updated", toResponse(ticket));
     }
 
@@ -193,6 +219,42 @@ public class TicketController extends BaseApiController {
         return ok("response.success.deleted", null);
     }
 
+    @GetMapping("/{ticketId}/comments")
+    public ApiResponse<List<TicketCommentResponse>> listComments(
+            @PathVariable Long ticketId,
+            @AuthenticationPrincipal PlatformPrincipal principal,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+        List<TicketCommentResponse> comments = ticketService.listComments(ticketId, principal.userId(), userNsRoles, principal.platformRoles())
+                .stream()
+                .map(comment -> new TicketCommentResponse(
+                        comment.getId(),
+                        comment.getTicketId(),
+                        comment.getAuthorId(),
+                        comment.getContent(),
+                        comment.getCreatedAt(),
+                        comment.getUpdatedAt()
+                ))
+                .toList();
+        return ok("response.success.read", comments);
+    }
+
+    @PostMapping("/{ticketId}/comments")
+    public ApiResponse<TicketCommentResponse> addComment(
+            @PathVariable Long ticketId,
+            @Valid @RequestBody TicketCommentRequest request,
+            @AuthenticationPrincipal PlatformPrincipal principal,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+        var comment = ticketService.addComment(ticketId, request.content(), principal.userId(), userNsRoles, principal.platformRoles());
+        return ok("response.success.created", new TicketCommentResponse(
+                comment.getId(),
+                comment.getTicketId(),
+                comment.getAuthorId(),
+                comment.getContent(),
+                comment.getCreatedAt(),
+                comment.getUpdatedAt()
+        ));
+    }
+
     private TicketMode parseMode(String mode) {
         try {
             return TicketMode.valueOf(mode.trim().toUpperCase());
@@ -211,8 +273,10 @@ public class TicketController extends BaseApiController {
                 ticket.getStatus().name(),
                 ticket.getCreatorId(),
                 ticket.getNamespaceId(),
+                ticket.getTargetTeamId(),
                 ticket.getSubmitSkillId(),
                 ticket.getSubmitSkillVersionId(),
+                ticketService.findPendingReviewTaskId(ticket.getSubmitSkillVersionId()),
                 ticket.getCreatedAt(),
                 ticket.getUpdatedAt()
         );

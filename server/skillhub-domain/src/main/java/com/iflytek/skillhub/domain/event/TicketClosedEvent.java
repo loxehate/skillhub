@@ -5,6 +5,7 @@ public record TicketClosedEvent(
         String title,
         Long namespaceId,
         String creatorId,
+        String claimerId,
         String status,
         Long skillId,
         Long versionId
