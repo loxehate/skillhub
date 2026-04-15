@@ -58,6 +58,7 @@ export function TicketDetailPage() {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [ticketRemoved, setTicketRemoved] = useState(false)
   const { data: ticket, isLoading } = useTicketDetail(ticketId, !ticketRemoved)
   const { data: comments } = useTicketComments(ticketId, !ticketRemoved)
   const { data: namespaces } = useMyNamespaces()
@@ -68,7 +69,6 @@ export function TicketDetailPage() {
   const startMutation = useStartTicket()
   const rejectMutation = useRejectTicket()
   const submitSkillMutation = useSubmitTicketSkill()
-  const [ticketRemoved, setTicketRemoved] = useState(false)
 
   const [comment, setComment] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
