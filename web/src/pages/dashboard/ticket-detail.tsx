@@ -22,9 +22,9 @@ import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
 import {
   useCancelTicket,
   useClaimTicket,
+  useCompleteTicketReview,
   useRejectTicket,
   useStartTicket,
-  useSubmitTicketReview,
   useSubmitTicketSkill,
   useTicketDetail,
 } from '@/shared/hooks/use-ticket-queries'
@@ -59,8 +59,8 @@ export function TicketDetailPage() {
   const { data: namespaces } = useMyNamespaces()
   const cancelMutation = useCancelTicket()
   const claimMutation = useClaimTicket()
+  const completeReviewMutation = useCompleteTicketReview()
   const startMutation = useStartTicket()
-  const submitReviewMutation = useSubmitTicketReview()
   const rejectMutation = useRejectTicket()
   const submitSkillMutation = useSubmitTicketSkill()
 
@@ -85,7 +85,7 @@ export function TicketDetailPage() {
   const canClaim = ticket?.status === 'OPEN'
   const canStart = ticket?.status === 'CLAIMED'
   const canSubmitSkill = ticket?.status === 'IN_PROGRESS'
-  const canSubmitReview = ticket?.status === 'IN_PROGRESS' || ticket?.status === 'TEAM_REVIEW'
+  const canCompleteReview = ticket?.status === 'TEAM_REVIEW'
   const canReject = ticket?.status === 'TEAM_REVIEW'
   const canCancel = !!ticket && ticket.status === 'OPEN' && user?.userId === ticket.creatorId
 
@@ -120,13 +120,13 @@ export function TicketDetailPage() {
     }
   }
 
-  const handleSubmitReview = async () => {
+  const handleCompleteReview = async () => {
     if (!ticket) return
     try {
-      await submitReviewMutation.mutateAsync(ticket.id)
-      toast.success(t('tickets.reviewSuccess'))
+      await completeReviewMutation.mutateAsync(ticket.id)
+      toast.success(t('tickets.completeSuccess'))
     } catch (error) {
-      toast.error(t('tickets.reviewError'), error instanceof Error ? error.message : '')
+      toast.error(t('tickets.completeError'), error instanceof Error ? error.message : '')
     }
   }
 
@@ -359,15 +359,15 @@ export function TicketDetailPage() {
           </div>
         )}
 
-        {canSubmitReview && (
+        {canCompleteReview && (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">{t('tickets.reviewHint')}</p>
+            <p className="text-sm text-muted-foreground">{t('tickets.completeHint')}</p>
             <Button
               variant="outline"
               onClick={() => setConfirmAction('review')}
-              disabled={submitReviewMutation.isPending}
+              disabled={completeReviewMutation.isPending}
             >
-              {submitReviewMutation.isPending ? t('tickets.reviewing') : t('tickets.submitForReview')}
+              {completeReviewMutation.isPending ? t('tickets.completing') : t('tickets.completeAction')}
             </Button>
           </div>
         )}
@@ -392,7 +392,7 @@ export function TicketDetailPage() {
           </div>
         )}
 
-        {!canClaim && !canCancel && !canStart && !canSubmitSkill && !canSubmitReview && !canReject && (
+        {!canClaim && !canCancel && !canStart && !canSubmitSkill && !canCompleteReview && !canReject && (
           <div className="rounded-xl border border-dashed border-border/70 p-6 text-center text-sm text-muted-foreground">
             {t('tickets.noActions')}
           </div>
@@ -420,10 +420,10 @@ export function TicketDetailPage() {
       <ConfirmDialog
         open={confirmAction === 'review'}
         onOpenChange={(open) => setConfirmAction(open ? 'review' : null)}
-        title={t('tickets.reviewConfirmTitle')}
-        description={t('tickets.reviewConfirmDescription')}
-        confirmText={t('tickets.submitForReview')}
-        onConfirm={handleSubmitReview}
+        title={t('tickets.completeConfirmTitle')}
+        description={t('tickets.completeConfirmDescription')}
+        confirmText={t('tickets.completeAction')}
+        onConfirm={handleCompleteReview}
       />
 
       <ConfirmDialog

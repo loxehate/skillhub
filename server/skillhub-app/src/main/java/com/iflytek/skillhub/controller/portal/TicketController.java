@@ -123,7 +123,7 @@ public class TicketController extends BaseApiController {
             @PathVariable Long ticketId,
             @AuthenticationPrincipal PlatformPrincipal principal,
             @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
-        Ticket ticket = ticketService.submitForReview(ticketId, principal.userId(), userNsRoles, principal.platformRoles());
+        Ticket ticket = ticketService.completeReview(ticketId, principal.userId(), userNsRoles, principal.platformRoles());
         return ok("response.success.updated", toResponse(ticket));
     }
 

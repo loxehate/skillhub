@@ -83,6 +83,10 @@ export function useSubmitTicketReview() {
   })
 }
 
+export function useCompleteTicketReview() {
+  return useSubmitTicketReview()
+}
+
 export function useRejectTicket() {
   const queryClient = useQueryClient()
   return useMutation({

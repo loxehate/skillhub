@@ -122,7 +122,9 @@ public class TicketService {
                                 Map<Long, NamespaceRole> userNsRoles,
                                 Set<String> platformRoles) {
         Ticket ticket = getTicket(ticketId);
-        if (ticket.getStatus() != TicketStatus.CLAIMED && ticket.getStatus() != TicketStatus.FAILED) {
+        if (ticket.getStatus() != TicketStatus.CLAIMED
+                && ticket.getStatus() != TicketStatus.FAILED
+                && ticket.getStatus() != TicketStatus.REJECTED) {
             throw new DomainBadRequestException("error.ticket.status.invalid", ticket.getStatus().name());
         }
         ensureAssigneeOrPermitted(ticket, userId, userNsRoles, platformRoles);
@@ -183,7 +185,7 @@ public class TicketService {
                                                          Map<Long, NamespaceRole> userNsRoles,
                                                          Set<String> platformRoles) {
         Ticket ticket = getTicket(ticketId);
-        ensureStatus(ticket, TicketStatus.TEAM_REVIEW);
+        ensureStatus(ticket, TicketStatus.IN_PROGRESS);
         NamespaceRole namespaceRole = resolveNamespaceRole(ticket.getNamespaceId(), userNsRoles);
         TeamRole teamRole = resolveTeamRole(ticket, userId);
         if (!permissionChecker.canSubmitSkill(platformRoles, namespaceRole, teamRole)) {
@@ -223,16 +225,14 @@ public class TicketService {
         Optional<Ticket> ticket = findBySkillReference(skillId, versionId);
         ticket.ifPresent(found -> {
             if (found.getStatus() == TicketStatus.SUBMITTED) {
-                found.setStatus(TicketStatus.DONE);
+                found.setStatus(TicketStatus.TEAM_REVIEW);
                 Ticket saved = ticketRepository.save(found);
-                eventPublisher.publishEvent(new TicketClosedEvent(
+                eventPublisher.publishEvent(new TicketReviewSubmittedEvent(
                         saved.getId(),
                         saved.getTitle(),
                         saved.getNamespaceId(),
                         saved.getCreatorId(),
-                        saved.getStatus().name(),
-                        skillId,
-                        versionId
+                        saved.getCreatorId()
                 ));
             }
         });
@@ -256,6 +256,32 @@ public class TicketService {
                 ));
             }
         });
+    }
+
+    @Transactional
+    public Ticket completeReview(Long ticketId,
+                                 String userId,
+                                 Map<Long, NamespaceRole> userNsRoles,
+                                 Set<String> platformRoles) {
+        Ticket ticket = getTicket(ticketId);
+        ensureStatus(ticket, TicketStatus.TEAM_REVIEW);
+        NamespaceRole namespaceRole = resolveNamespaceRole(ticket.getNamespaceId(), userNsRoles);
+        TeamRole teamRole = resolveTeamRole(ticket, userId);
+        if (!permissionChecker.canReview(platformRoles, namespaceRole, teamRole)) {
+            throw new DomainForbiddenException("error.ticket.noPermission");
+        }
+        ticket.setStatus(TicketStatus.DONE);
+        Ticket saved = ticketRepository.save(ticket);
+        eventPublisher.publishEvent(new TicketClosedEvent(
+                saved.getId(),
+                saved.getTitle(),
+                saved.getNamespaceId(),
+                saved.getCreatorId(),
+                saved.getStatus().name(),
+                saved.getSubmitSkillId(),
+                saved.getSubmitSkillVersionId()
+        ));
+        return saved;
     }
 
     public Ticket getTicketForView(Long ticketId,
