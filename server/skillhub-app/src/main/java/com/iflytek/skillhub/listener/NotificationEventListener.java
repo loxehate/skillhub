@@ -16,8 +16,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class NotificationEventListener {
@@ -196,17 +198,13 @@ public class NotificationEventListener {
         Map<String, Object> body = bodyWithTicket(event.ticketId(), event.title(), event.namespaceId());
         String json = toJson(body);
 
-        if (event.targetUserId() != null && !event.targetUserId().isBlank() && !event.targetUserId().equals(event.creatorId())) {
-            dispatcher.dispatch(event.targetUserId(), NotificationCategory.TICKET,
-                    "TICKET_CREATED", title, json, "TICKET", event.ticketId());
-        }
-
-        if (event.targetTeamId() != null) {
-            for (String userId : recipientResolver.resolveTeamMembers(event.targetTeamId())) {
-                if (!userId.equals(event.creatorId())) {
-                    dispatcher.dispatch(userId, NotificationCategory.TICKET,
-                            "TICKET_CREATED", title, json, "TICKET", event.ticketId());
-                }
+        Set<String> recipients = new LinkedHashSet<>();
+        recipients.addAll(recipientResolver.resolveNamespaceAdmins(event.namespaceId()));
+        recipients.addAll(recipientResolver.resolvePlatformSkillAdmins());
+        for (String userId : recipients) {
+            if (!userId.equals(event.creatorId())) {
+                dispatcher.dispatch(userId, NotificationCategory.TICKET,
+                        "TICKET_CREATED", title, json, "TICKET", event.ticketId());
             }
         }
     }
@@ -221,6 +219,12 @@ public class NotificationEventListener {
         if (!event.creatorId().equals(event.claimerId())) {
             dispatcher.dispatch(event.creatorId(), NotificationCategory.TICKET,
                     "TICKET_CLAIMED", title, json, "TICKET", event.ticketId());
+        }
+        for (String admin : recipientResolver.resolveNamespaceAdmins(event.namespaceId()).stream().distinct().toList()) {
+            if (!admin.equals(event.claimerId()) && !admin.equals(event.creatorId())) {
+                dispatcher.dispatch(admin, NotificationCategory.TICKET,
+                        "TICKET_CLAIMED", title, json, "TICKET", event.ticketId());
+            }
         }
     }
 

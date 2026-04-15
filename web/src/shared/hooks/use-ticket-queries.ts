@@ -42,7 +42,7 @@ export function useCreateTicket() {
 export function useClaimTicket() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ ticketId, teamId }: { ticketId: number; teamId?: number | null }) => ticketApi.claim(ticketId, teamId),
+    mutationFn: (ticketId: number) => ticketApi.claim(ticketId),
     onSuccess: (ticket) => {
       queryClient.setQueryData(['tickets', ticket.id], ticket)
       queryClient.invalidateQueries({ queryKey: ['tickets'] })

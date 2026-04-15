@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/shared/ui/button'
@@ -16,10 +16,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  normalizeSelectValue,
 } from '@/shared/ui/select'
 import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
-import { useTeams } from '@/shared/hooks/use-team-queries'
 import {
   useClaimTicket,
   useRejectTicket,
@@ -37,8 +35,6 @@ import {
 } from '@/features/publish/publish-error-utils'
 import { ApiError } from '@/api/client'
 import type { TicketStatus } from '@/api/types'
-
-const EMPTY_TEAM_VALUE = '__no_team__'
 
 const STATUS_TONE: Record<string, string> = {
   OPEN: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
@@ -58,27 +54,18 @@ export function TicketDetailPage() {
   const navigate = useNavigate()
   const { data: ticket, isLoading } = useTicketDetail(ticketId)
   const { data: namespaces } = useMyNamespaces()
-  const { data: teams } = useTeams(ticket?.namespaceId)
   const claimMutation = useClaimTicket()
   const startMutation = useStartTicket()
   const submitReviewMutation = useSubmitTicketReview()
   const rejectMutation = useRejectTicket()
   const submitSkillMutation = useSubmitTicketSkill()
 
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(EMPTY_TEAM_VALUE)
   const [comment, setComment] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [visibility, setVisibility] = useState('PUBLIC')
   const [confirmAction, setConfirmAction] = useState<null | 'claim' | 'start' | 'review'>(null)
   const [warningDialogOpen, setWarningDialogOpen] = useState(false)
   const [precheckWarnings, setPrecheckWarnings] = useState<string[]>([])
-
-  useEffect(() => {
-    if (!ticket) {
-      return
-    }
-    setSelectedTeamId(ticket.targetTeamId ? String(ticket.targetTeamId) : EMPTY_TEAM_VALUE)
-  }, [ticket])
 
   const namespaceInfo = useMemo(() => {
     if (!ticket || !namespaces) {
@@ -100,10 +87,7 @@ export function TicketDetailPage() {
   const handleClaim = async () => {
     if (!ticket) return
     try {
-      await claimMutation.mutateAsync({
-        ticketId: ticket.id,
-        teamId: selectedTeamId === EMPTY_TEAM_VALUE ? null : Number(selectedTeamId),
-      })
+      await claimMutation.mutateAsync(ticket.id)
       toast.success(t('tickets.claimSuccess'))
     } catch (error) {
       toast.error(t('tickets.claimError'), error instanceof Error ? error.message : '')
@@ -260,18 +244,6 @@ export function TicketDetailPage() {
               <p className="font-semibold">{ticket.reward}</p>
             </div>
           )}
-          {ticket.targetTeamId && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">{t('tickets.targetTeam')}</Label>
-              <p className="font-semibold">#{ticket.targetTeamId}</p>
-            </div>
-          )}
-          {ticket.targetUserId && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">{t('tickets.targetUser')}</Label>
-              <p className="font-semibold">{ticket.targetUserId}</p>
-            </div>
-          )}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground uppercase tracking-wider">{t('tickets.creatorLabel')}</Label>
             <p className="font-semibold">{ticket.creatorId}</p>
@@ -287,23 +259,7 @@ export function TicketDetailPage() {
         <h3 className="text-lg font-semibold font-heading">{t('tickets.actionsTitle')}</h3>
         {canClaim && (
           <div className="space-y-3">
-            <Label>{t('tickets.claimTeam')}</Label>
-            <Select
-              value={normalizeSelectValue(selectedTeamId) ?? EMPTY_TEAM_VALUE}
-              onValueChange={setSelectedTeamId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={t('tickets.claimTeamPlaceholder')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={EMPTY_TEAM_VALUE}>{t('tickets.claimTeamNone')}</SelectItem>
-                {teams?.map((team) => (
-                  <SelectItem key={team.id} value={String(team.id)}>
-                    {team.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <p className="text-sm text-muted-foreground">{t('tickets.claimHint')}</p>
             <Button
               onClick={() => setConfirmAction('claim')}
               disabled={claimMutation.isPending}

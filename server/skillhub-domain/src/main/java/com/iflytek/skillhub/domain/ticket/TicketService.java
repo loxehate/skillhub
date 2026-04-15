@@ -57,41 +57,24 @@ public class TicketService {
                                TicketMode mode,
                                java.math.BigDecimal reward,
                                String namespaceSlug,
-                               Long targetTeamId,
-                               String targetUserId,
                                String creatorId,
                                Map<Long, NamespaceRole> userNsRoles,
                                Set<String> platformRoles) {
-        Namespace namespace = namespaceRepository.findBySlug(namespaceSlug)
-                .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", namespaceSlug));
+        String resolvedNamespaceSlug = (namespaceSlug == null || namespaceSlug.isBlank()) ? "global" : namespaceSlug.trim();
+        Namespace namespace = namespaceRepository.findBySlug(resolvedNamespaceSlug)
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", resolvedNamespaceSlug));
         NamespaceRole namespaceRole = resolveNamespaceRole(namespace.getId(), userNsRoles);
         if (!permissionChecker.canCreate(platformRoles, namespaceRole)) {
             throw new DomainForbiddenException("error.ticket.noPermission");
         }
 
-        if (targetTeamId != null) {
-            Team team = teamRepository.findById(targetTeamId)
-                    .orElseThrow(() -> new DomainBadRequestException("error.team.notFound", targetTeamId));
-            if (!team.getNamespaceId().equals(namespace.getId())) {
-                throw new DomainBadRequestException("error.ticket.teamNamespaceMismatch", targetTeamId);
-            }
-        }
-
-        Ticket ticket = new Ticket(title, description, mode, reward, creatorId, namespace.getId(), targetTeamId, targetUserId);
-        if (mode == TicketMode.ASSIGN && (targetTeamId != null || targetUserId != null)) {
-            ticket.setStatus(TicketStatus.CLAIMED);
-        }
+        Ticket ticket = new Ticket(title, description, mode, reward, creatorId, namespace.getId(), null, null);
         Ticket saved = ticketRepository.save(ticket);
-        if (saved.getStatus() == TicketStatus.CLAIMED) {
-            ticketClaimRepository.save(new TicketClaim(saved.getId(), targetUserId, targetTeamId, TicketClaimStatus.ACCEPTED));
-        }
         eventPublisher.publishEvent(new TicketCreatedEvent(
                 saved.getId(),
                 saved.getTitle(),
                 saved.getNamespaceId(),
-                creatorId,
-                saved.getTargetTeamId(),
-                saved.getTargetUserId()
+                creatorId
         ));
         return saved;
     }

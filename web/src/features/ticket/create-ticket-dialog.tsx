@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/ui/dialog'
 import { Button } from '@/shared/ui/button'
@@ -7,8 +7,6 @@ import { Textarea } from '@/shared/ui/textarea'
 import { Label } from '@/shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { useCreateTicket } from '@/shared/hooks/use-ticket-queries'
-import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
-import { useTeams } from '@/shared/hooks/use-team-queries'
 import { toast } from '@/shared/lib/toast'
 
 interface CreateTicketDialogProps {
@@ -16,40 +14,26 @@ interface CreateTicketDialogProps {
 }
 
 const DEFAULT_MODE = 'BOUNTY'
+const DEFAULT_NAMESPACE = 'global'
 
 export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
   const { t } = useTranslation()
-  const { data: namespaces } = useMyNamespaces()
   const createTicketMutation = useCreateTicket()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [mode, setMode] = useState(DEFAULT_MODE)
   const [reward, setReward] = useState('')
-  const [namespace, setNamespace] = useState('')
-  const [targetTeamId, setTargetTeamId] = useState('')
-  const [targetUserId, setTargetUserId] = useState('')
-
-  const namespaceOptions = useMemo(() => namespaces ?? [], [namespaces])
-  const selectedNamespace = useMemo(
-    () => namespaceOptions.find((item) => item.slug === namespace),
-    [namespace, namespaceOptions],
-  )
-  const { data: teams } = useTeams(selectedNamespace?.id)
-  const teamOptions = useMemo(() => teams ?? [], [teams])
 
   const resetForm = () => {
     setTitle('')
     setDescription('')
     setMode(DEFAULT_MODE)
     setReward('')
-    setNamespace('')
-    setTargetTeamId('')
-    setTargetUserId('')
   }
 
   const handleSubmit = async () => {
-    if (!title.trim() || !namespace) {
+    if (!title.trim()) {
       toast.error(t('tickets.createErrorTitle'), t('tickets.createRequired'))
       return
     }
@@ -59,9 +43,7 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
         description: description.trim() || undefined,
         mode,
         reward: reward.trim() ? Number(reward) : undefined,
-        namespace,
-        targetTeamId: targetTeamId.trim() ? Number(targetTeamId) : undefined,
-        targetUserId: targetUserId.trim() || undefined,
+        namespace: DEFAULT_NAMESPACE,
       })
       toast.success(t('tickets.createSuccessTitle'), t('tickets.createSuccessDescription', { title: title.trim() }))
       resetForm()
@@ -130,51 +112,8 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>{t('tickets.fieldNamespace')}</Label>
-            <Select value={namespace} onValueChange={setNamespace}>
-              <SelectTrigger>
-                <SelectValue placeholder={t('tickets.fieldNamespacePlaceholder')} />
-              </SelectTrigger>
-              <SelectContent>
-                {namespaceOptions.map((ns) => (
-                  <SelectItem key={ns.id} value={ns.slug}>
-                    {ns.displayName} (@{ns.slug})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{t('tickets.fieldTargetTeam')}</Label>
-              <Select
-                value={targetTeamId || 'none'}
-                onValueChange={(value) => setTargetTeamId(value === 'none' ? '' : value)}
-                disabled={!selectedNamespace}
-              >
-                <SelectTrigger id="ticket-team">
-                  <SelectValue placeholder={t('tickets.fieldTargetTeamPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t('tickets.claimTeamNone')}</SelectItem>
-                  {teamOptions.map((team) => (
-                    <SelectItem key={team.id} value={String(team.id)}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ticket-user">{t('tickets.fieldTargetUser')}</Label>
-              <Input
-                id="ticket-user"
-                value={targetUserId}
-                onChange={(event) => setTargetUserId(event.target.value)}
-                placeholder={t('tickets.fieldTargetUserPlaceholder')}
-              />
-            </div>
+          <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
+            {t('tickets.createNamespaceHint')}
           </div>
         </div>
         <DialogFooter>

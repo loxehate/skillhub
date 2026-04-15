@@ -44,19 +44,22 @@ public class TicketPermissionChecker {
     }
 
     public boolean canReject(Set<String> platformRoles, NamespaceRole namespaceRole, TeamRole teamRole) {
-        return canReview(platformRoles, namespaceRole, teamRole);
+        return isSuperAdmin(platformRoles) || platformRoles.contains("USER_ADMIN");
     }
 
     public boolean canSubmitSkill(Set<String> platformRoles, NamespaceRole namespaceRole, TeamRole teamRole) {
         return isSuperAdmin(platformRoles)
+                || platformRoles.contains("USER_ADMIN")
                 || namespaceRole == NamespaceRole.OWNER
                 || namespaceRole == NamespaceRole.ADMIN
-                || teamRole == TeamRole.ADMIN;
+                || namespaceRole == NamespaceRole.MEMBER
+                || teamRole == TeamRole.ADMIN
+                || teamRole == TeamRole.DEV;
     }
 
     public boolean canManage(Set<String> platformRoles, NamespaceRole namespaceRole) {
         return isSuperAdmin(platformRoles)
-                || namespaceRole == NamespaceRole.OWNER;
+                || platformRoles.contains("USER_ADMIN");
     }
 
     public boolean canArbitrate(Set<String> platformRoles) {

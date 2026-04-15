@@ -732,14 +732,14 @@ export const ticketApi = {
   },
 
   async claim(ticketId: number, teamId?: number | null): Promise<Ticket> {
-    return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}/claim`, {
-      method: 'POST',
-      headers: await ensureCsrfHeaders({
-        'Content-Type': 'application/json',
-      }),
-      body: JSON.stringify(teamId ? { teamId } : {}),
-    })
-  },
+      return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}/claim`, {
+        method: 'POST',
+        headers: await ensureCsrfHeaders({
+          'Content-Type': 'application/json',
+        }),
+        body: JSON.stringify(teamId ? { teamId } : {}),
+      })
+    },
 
   async start(ticketId: number): Promise<Ticket> {
     return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}/start`, {

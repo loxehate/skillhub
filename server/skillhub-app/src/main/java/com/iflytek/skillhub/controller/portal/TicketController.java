@@ -69,8 +69,6 @@ public class TicketController extends BaseApiController {
                 mode,
                 request.reward(),
                 request.namespace(),
-                request.targetTeamId(),
-                request.targetUserId(),
                 principal.userId(),
                 userNsRoles,
                 principal.platformRoles()
@@ -203,8 +201,6 @@ public class TicketController extends BaseApiController {
                 ticket.getStatus().name(),
                 ticket.getCreatorId(),
                 ticket.getNamespaceId(),
-                ticket.getTargetTeamId(),
-                ticket.getTargetUserId(),
                 ticket.getSubmitSkillId(),
                 ticket.getSubmitSkillVersionId(),
                 ticket.getCreatedAt(),

@@ -4,8 +4,6 @@ public record TicketCreatedEvent(
         Long ticketId,
         String title,
         Long namespaceId,
-        String creatorId,
-        Long targetTeamId,
-        String targetUserId
+        String creatorId
 ) {
 }

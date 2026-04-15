@@ -16,11 +16,5 @@ public record TicketCreateRequest(
         String mode,
 
         BigDecimal reward,
-
-        @NotBlank(message = "{validation.ticket.namespace.notBlank}")
-        String namespace,
-
-        Long targetTeamId,
-
-        String targetUserId
+        String namespace
 ) {}

@@ -12,8 +12,6 @@ public record TicketResponse(
         String status,
         String creatorId,
         Long namespaceId,
-        Long targetTeamId,
-        String targetUserId,
         Long submitSkillId,
         Long submitSkillVersionId,
         Instant createdAt,
