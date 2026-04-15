@@ -58,8 +58,8 @@ export function TicketDetailPage() {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const navigate = useNavigate()
-  const { data: ticket, isLoading } = useTicketDetail(ticketId)
-  const { data: comments } = useTicketComments(ticketId)
+  const { data: ticket, isLoading } = useTicketDetail(ticketId, !ticketRemoved)
+  const { data: comments } = useTicketComments(ticketId, !ticketRemoved)
   const { data: namespaces } = useMyNamespaces()
   const cancelMutation = useCancelTicket()
   const addCommentMutation = useAddTicketComment()
@@ -68,6 +68,7 @@ export function TicketDetailPage() {
   const startMutation = useStartTicket()
   const rejectMutation = useRejectTicket()
   const submitSkillMutation = useSubmitTicketSkill()
+  const [ticketRemoved, setTicketRemoved] = useState(false)
 
   const [comment, setComment] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -105,7 +106,7 @@ export function TicketDetailPage() {
     || namespaceInfo?.currentUserRole === 'OWNER'
     || namespaceInfo?.currentUserRole === 'ADMIN'
   )
-  const canOpenSkillReview = ticket?.status === 'SUBMITTED' && !!ticket.skillReviewTaskId
+  const canOpenSkillReview = ticket?.status === 'SUBMITTED' && !!ticket.skillReviewTaskId && canReviewPermission
 
   const handleClaim = async () => {
     if (!ticket) return
@@ -130,10 +131,12 @@ export function TicketDetailPage() {
   const handleCancel = async () => {
     if (!ticket) return
     try {
+      setTicketRemoved(true)
       await cancelMutation.mutateAsync(ticket.id)
       toast.success(t('tickets.cancelSuccess'))
       navigate({ to: '/dashboard/tickets' })
     } catch (error) {
+      setTicketRemoved(false)
       toast.error(t('tickets.cancelError'), error instanceof Error ? error.message : '')
     }
   }

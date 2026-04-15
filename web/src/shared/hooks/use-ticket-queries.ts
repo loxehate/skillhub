@@ -29,11 +29,11 @@ export function useTickets(namespace?: string) {
   })
 }
 
-export function useTicketDetail(ticketId?: number) {
+export function useTicketDetail(ticketId?: number, enabled = true) {
   return useQuery({
     queryKey: ['tickets', ticketId],
     queryFn: () => getTicket(ticketId as number),
-    enabled: Number.isFinite(ticketId),
+    enabled: enabled && Number.isFinite(ticketId),
   })
 }
 
@@ -64,16 +64,17 @@ export function useCancelTicket() {
     mutationFn: (ticketId: number) => ticketApi.cancel(ticketId),
     onSuccess: (_data, ticketId) => {
       queryClient.removeQueries({ queryKey: ['tickets', ticketId], exact: true })
+      queryClient.removeQueries({ queryKey: ['tickets', ticketId, 'comments'], exact: true })
       queryClient.invalidateQueries({ queryKey: ['tickets'] })
     },
   })
 }
 
-export function useTicketComments(ticketId?: number) {
+export function useTicketComments(ticketId?: number, enabled = true) {
   return useQuery({
     queryKey: ['tickets', ticketId, 'comments'],
     queryFn: () => listTicketComments(ticketId as number),
-    enabled: Number.isFinite(ticketId),
+    enabled: enabled && Number.isFinite(ticketId),
   })
 }
 

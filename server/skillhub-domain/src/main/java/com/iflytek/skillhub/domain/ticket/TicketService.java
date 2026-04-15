@@ -86,11 +86,7 @@ public class TicketService {
         }
         validateReward(reward);
 
-        if (targetTeamId != null) {
-            validateTargetTeam(namespace.getId(), targetTeamId);
-        }
-
-        Ticket ticket = new Ticket(title, description, mode, reward, creatorId, namespace.getId(), targetTeamId, null);
+        Ticket ticket = new Ticket(title, description, mode, reward, creatorId, namespace.getId(), null, null);
         Ticket saved = ticketRepository.save(ticket);
         eventPublisher.publishEvent(new TicketCreatedEvent(
                 saved.getId(),
@@ -98,7 +94,7 @@ public class TicketService {
                 saved.getNamespaceId(),
                 creatorId,
                 saved.getMode().name(),
-                saved.getTargetTeamId()
+                null
         ));
         return saved;
     }
@@ -166,19 +162,12 @@ public class TicketService {
         }
         validateReward(reward);
 
-        if (mode == TicketMode.ASSIGN && targetTeamId == null) {
-            throw new DomainBadRequestException("error.ticket.assign.teamRequired");
-        }
-        if (targetTeamId != null) {
-            validateTargetTeam(namespace.getId(), targetTeamId);
-        }
-
         ticket.setTitle(title);
         ticket.setDescription(description);
         ticket.setMode(mode);
         ticket.setReward(reward);
         ticket.setNamespaceId(namespace.getId());
-        ticket.setTargetTeamId(mode == TicketMode.ASSIGN ? targetTeamId : null);
+        ticket.setTargetTeamId(null);
         return ticketRepository.save(ticket);
     }
 
@@ -560,14 +549,6 @@ public class TicketService {
     private Namespace resolveNamespace(String namespaceSlug) {
         return namespaceRepository.findBySlug(namespaceSlug)
                 .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", namespaceSlug));
-    }
-
-    private void validateTargetTeam(Long namespaceId, Long targetTeamId) {
-        Team team = teamRepository.findById(targetTeamId)
-                .orElseThrow(() -> new DomainBadRequestException("error.team.notFound", targetTeamId));
-        if (!team.getNamespaceId().equals(namespaceId)) {
-            throw new DomainBadRequestException("error.ticket.teamNamespaceMismatch", targetTeamId);
-        }
     }
 
     private void validateReward(java.math.BigDecimal reward) {

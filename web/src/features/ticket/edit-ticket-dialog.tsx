@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import type { Ticket } from '@/api/types'
 import { useAuth } from '@/features/auth/use-auth'
 import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
-import { useTeams } from '@/shared/hooks/use-team-queries'
 import { useUpdateTicket } from '@/shared/hooks/use-ticket-queries'
 import { toast } from '@/shared/lib/toast'
 import { Button } from '@/shared/ui/button'
@@ -29,7 +28,6 @@ export function EditTicketDialog({ ticket, children }: EditTicketDialogProps) {
   const [mode, setMode] = useState(ticket.mode)
   const [reward, setReward] = useState(ticket.reward != null ? String(ticket.reward) : '')
   const [namespace, setNamespace] = useState('')
-  const [targetTeamId, setTargetTeamId] = useState(ticket.targetTeamId != null ? String(ticket.targetTeamId) : '')
 
   const allowedNamespaces = useMemo(() => (namespaces ?? []).filter((item) => {
     if (item.currentUserRole === 'OWNER' || item.currentUserRole === 'ADMIN') {
@@ -49,14 +47,10 @@ export function EditTicketDialog({ ticket, children }: EditTicketDialogProps) {
       setDescription(ticket.description ?? '')
       setMode(ticket.mode)
       setReward(ticket.reward != null ? String(ticket.reward) : '')
-      setTargetTeamId(ticket.targetTeamId != null ? String(ticket.targetTeamId) : '')
       const currentNamespace = allowedNamespaces.find((item) => item.id === ticket.namespaceId)
       setNamespace(currentNamespace?.slug ?? 'global')
     }
   }, [allowedNamespaces, open, ticket])
-
-  const selectedNamespace = allowedNamespaces.find((item) => item.slug === namespace)
-  const { data: teams } = useTeams(selectedNamespace?.id)
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -65,10 +59,6 @@ export function EditTicketDialog({ ticket, children }: EditTicketDialogProps) {
     }
     if (reward.trim() && !/^\d+$/.test(reward.trim())) {
       toast.error(t('tickets.editErrorTitle'), t('tickets.amountIntegerRequired'))
-      return
-    }
-    if (mode === 'ASSIGN' && !targetTeamId) {
-      toast.error(t('tickets.editErrorTitle'), t('tickets.createTargetTeamRequired'))
       return
     }
     try {
@@ -80,7 +70,6 @@ export function EditTicketDialog({ ticket, children }: EditTicketDialogProps) {
           mode,
           reward: reward.trim() ? Number.parseInt(reward, 10) : undefined,
           namespace,
-          targetTeamId: mode === 'ASSIGN' && targetTeamId ? Number(targetTeamId) : undefined,
         },
       })
       toast.success(t('tickets.editSuccessTitle'), t('tickets.editSuccessDescription'))
@@ -123,9 +112,6 @@ export function EditTicketDialog({ ticket, children }: EditTicketDialogProps) {
               <Label>{t('tickets.fieldMode')}</Label>
               <Select value={mode} onValueChange={(value) => {
                 setMode(value)
-                if (value !== 'ASSIGN') {
-                  setTargetTeamId('')
-                }
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder={t('tickets.fieldModePlaceholder')} />
@@ -164,23 +150,6 @@ export function EditTicketDialog({ ticket, children }: EditTicketDialogProps) {
               </SelectContent>
             </Select>
           </div>
-          {mode === 'ASSIGN' && (
-            <div className="space-y-2">
-              <Label>{t('tickets.fieldTargetTeam')}</Label>
-              <Select value={targetTeamId} onValueChange={setTargetTeamId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('tickets.fieldTargetTeamPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(teams ?? []).map((team) => (
-                    <SelectItem key={team.id} value={String(team.id)}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>

@@ -11,6 +11,7 @@ import com.iflytek.skillhub.domain.skill.Skill;
 import com.iflytek.skillhub.domain.skill.SkillFile;
 import com.iflytek.skillhub.domain.skill.SkillFileRepository;
 import com.iflytek.skillhub.domain.skill.SkillRepository;
+import com.iflytek.skillhub.domain.skill.SkillSearchDocumentRepository;
 import com.iflytek.skillhub.domain.skill.SkillTagRepository;
 import com.iflytek.skillhub.domain.skill.SkillVersion;
 import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
@@ -42,6 +43,7 @@ public class SkillHardDeleteService {
     private final SkillVersionRepository skillVersionRepository;
     private final SkillFileRepository skillFileRepository;
     private final SkillTagRepository skillTagRepository;
+    private final SkillSearchDocumentRepository skillSearchDocumentRepository;
     private final ReviewTaskRepository reviewTaskRepository;
     private final PromotionRequestRepository promotionRequestRepository;
     private final SkillStarRepository skillStarRepository;
@@ -58,6 +60,7 @@ public class SkillHardDeleteService {
                                   SkillVersionRepository skillVersionRepository,
                                   SkillFileRepository skillFileRepository,
                                   SkillTagRepository skillTagRepository,
+                                  SkillSearchDocumentRepository skillSearchDocumentRepository,
                                   ReviewTaskRepository reviewTaskRepository,
                                   PromotionRequestRepository promotionRequestRepository,
                                   SkillStarRepository skillStarRepository,
@@ -73,6 +76,7 @@ public class SkillHardDeleteService {
         this.skillVersionRepository = skillVersionRepository;
         this.skillFileRepository = skillFileRepository;
         this.skillTagRepository = skillTagRepository;
+        this.skillSearchDocumentRepository = skillSearchDocumentRepository;
         this.reviewTaskRepository = reviewTaskRepository;
         this.promotionRequestRepository = promotionRequestRepository;
         this.skillStarRepository = skillStarRepository;
@@ -110,6 +114,7 @@ public class SkillHardDeleteService {
         if (!versionIds.isEmpty()) {
             reviewTaskRepository.deleteBySkillVersionIdIn(versionIds);
         }
+        skillSearchDocumentRepository.deleteBySkillId(skill.getId());
         promotionRequestRepository.deleteBySourceSkillIdOrTargetSkillId(skill.getId(), skill.getId());
         skillTagRepository.deleteBySkillId(skill.getId());
         skillStarRepository.deleteBySkillId(skill.getId());

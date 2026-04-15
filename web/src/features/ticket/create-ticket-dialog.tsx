@@ -8,7 +8,6 @@ import { Label } from '@/shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { useCreateTicket } from '@/shared/hooks/use-ticket-queries'
 import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
-import { useTeams } from '@/shared/hooks/use-team-queries'
 import { useAuth } from '@/features/auth/use-auth'
 import { toast } from '@/shared/lib/toast'
 
@@ -30,7 +29,6 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
   const [mode, setMode] = useState(DEFAULT_MODE)
   const [reward, setReward] = useState('')
   const [namespace, setNamespace] = useState(DEFAULT_NAMESPACE)
-  const [targetTeamId, setTargetTeamId] = useState('')
 
   const allowedNamespaces = (namespaces ?? []).filter((item) => {
     if (item.currentUserRole === 'OWNER' || item.currentUserRole === 'ADMIN') {
@@ -38,8 +36,6 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
     }
     return user?.platformRoles?.includes('USER_ADMIN') || user?.platformRoles?.includes('SUPER_ADMIN')
   })
-  const selectedNamespace = allowedNamespaces.find((item) => item.slug === namespace)
-  const { data: teams } = useTeams(selectedNamespace?.id)
 
   const resetForm = () => {
     setTitle('')
@@ -47,7 +43,6 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
     setMode(DEFAULT_MODE)
     setReward('')
     setNamespace(DEFAULT_NAMESPACE)
-    setTargetTeamId('')
   }
 
   const handleSubmit = async () => {
@@ -59,10 +54,6 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
       toast.error(t('tickets.createErrorTitle'), t('tickets.amountIntegerRequired'))
       return
     }
-    if (mode === 'ASSIGN' && !targetTeamId) {
-      toast.error(t('tickets.createErrorTitle'), t('tickets.createTargetTeamRequired'))
-      return
-    }
     try {
       await createTicketMutation.mutateAsync({
         title: title.trim(),
@@ -70,7 +61,6 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
         mode,
         reward: reward.trim() ? Number.parseInt(reward, 10) : undefined,
         namespace,
-        targetTeamId: mode === 'ASSIGN' && targetTeamId ? Number(targetTeamId) : undefined,
       })
       toast.success(t('tickets.createSuccessTitle'), t('tickets.createSuccessDescription', { title: title.trim() }))
       resetForm()
@@ -154,23 +144,6 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
               </SelectContent>
             </Select>
           </div>
-          {mode === 'ASSIGN' && (
-            <div className="space-y-2">
-              <Label>{t('tickets.fieldTargetTeam')}</Label>
-              <Select value={targetTeamId} onValueChange={setTargetTeamId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('tickets.fieldTargetTeamPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(teams ?? []).map((team) => (
-                    <SelectItem key={team.id} value={String(team.id)}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
