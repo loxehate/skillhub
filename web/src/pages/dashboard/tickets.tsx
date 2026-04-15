@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/shared/ui/button'
 import { CreateTicketDialog } from '@/features/ticket/create-ticket-dialog'
 import { useTickets } from '@/shared/hooks/use-ticket-queries'
+import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
+import { useAuth } from '@/features/auth/use-auth'
 import { formatLocalDateTime } from '@/shared/lib/date-time'
 import type { TicketStatus } from '@/api/types'
 
@@ -25,7 +27,9 @@ const STATUS_TABS: TicketStatus[] = [
 export function TicketsPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { data: tickets, isLoading } = useTickets()
+  const { data: namespaces } = useMyNamespaces()
   const [activeStatus, setActiveStatus] = useState<TicketStatus>('OPEN')
 
   const filteredTickets = useMemo(() => {
@@ -36,20 +40,29 @@ export function TicketsPage() {
   }, [tickets, activeStatus])
 
   const formatDate = (dateString: string) => formatLocalDateTime(dateString, i18n.language)
+  const canCreateTicket = !!user && (
+    user.platformRoles.includes('USER_ADMIN')
+    || user.platformRoles.includes('SUPER_ADMIN')
+    || (namespaces ?? []).some((namespace) => namespace.currentUserRole === 'OWNER' || namespace.currentUserRole === 'ADMIN')
+  )
 
   const statusLabel = (status: TicketStatus) => t(`tickets.status.${status}`)
   const modeLabel = (mode: string) => t(`tickets.mode.${mode}`, { defaultValue: mode })
+  const namespaceLabel = (namespaceId: number) => {
+    const namespace = namespaces?.find((item) => item.id === namespaceId)
+    return namespace ? `${namespace.displayName} (@${namespace.slug})` : `#${namespaceId}`
+  }
 
   return (
     <div className="space-y-8 animate-fade-up">
       <DashboardPageHeader
         title={t('tickets.title')}
         subtitle={t('tickets.subtitle')}
-        actions={(
+        actions={canCreateTicket ? (
           <CreateTicketDialog>
             <Button>{t('tickets.createAction')}</Button>
           </CreateTicketDialog>
-        )}
+        ) : null}
       />
 
       <Card className="overflow-hidden border-border/60">
@@ -100,7 +113,7 @@ export function TicketsPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-sm">{modeLabel(ticket.mode)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{ticket.namespaceId}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{namespaceLabel(ticket.namespaceId)}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{formatDate(ticket.updatedAt)}</TableCell>
                         </TableRow>
                       ))}

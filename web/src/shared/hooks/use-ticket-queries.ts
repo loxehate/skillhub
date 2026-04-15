@@ -39,6 +39,17 @@ export function useCreateTicket() {
   })
 }
 
+export function useCancelTicket() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ticketId: number) => ticketApi.cancel(ticketId),
+    onSuccess: (_data, ticketId) => {
+      queryClient.removeQueries({ queryKey: ['tickets', ticketId], exact: true })
+      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+    },
+  })
+}
+
 export function useClaimTicket() {
   const queryClient = useQueryClient()
   return useMutation({

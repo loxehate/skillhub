@@ -10,8 +10,10 @@ import java.util.Optional;
 
 @Repository
 public interface TicketJpaRepository extends JpaRepository<Ticket, Long>, TicketRepository {
+    List<Ticket> findAll();
     List<Ticket> findByCreatorId(String creatorId);
     List<Ticket> findByNamespaceId(Long namespaceId);
+    List<Ticket> findByNamespaceIdIn(List<Long> namespaceIds);
     List<Ticket> findByIdIn(List<Long> ids);
     Optional<Ticket> findBySubmitSkillId(Long skillId);
     Optional<Ticket> findBySubmitSkillVersionId(Long versionId);

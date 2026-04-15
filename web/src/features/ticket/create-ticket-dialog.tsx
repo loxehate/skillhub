@@ -7,6 +7,8 @@ import { Textarea } from '@/shared/ui/textarea'
 import { Label } from '@/shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { useCreateTicket } from '@/shared/hooks/use-ticket-queries'
+import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
+import { useAuth } from '@/features/auth/use-auth'
 import { toast } from '@/shared/lib/toast'
 
 interface CreateTicketDialogProps {
@@ -18,18 +20,29 @@ const DEFAULT_NAMESPACE = 'global'
 
 export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
   const { t } = useTranslation()
+  const { user } = useAuth()
+  const { data: namespaces } = useMyNamespaces()
   const createTicketMutation = useCreateTicket()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [mode, setMode] = useState(DEFAULT_MODE)
   const [reward, setReward] = useState('')
+  const [namespace, setNamespace] = useState(DEFAULT_NAMESPACE)
+
+  const allowedNamespaces = (namespaces ?? []).filter((item) => {
+    if (item.currentUserRole === 'OWNER' || item.currentUserRole === 'ADMIN') {
+      return true
+    }
+    return user?.platformRoles?.includes('USER_ADMIN') || user?.platformRoles?.includes('SUPER_ADMIN')
+  })
 
   const resetForm = () => {
     setTitle('')
     setDescription('')
     setMode(DEFAULT_MODE)
     setReward('')
+    setNamespace(DEFAULT_NAMESPACE)
   }
 
   const handleSubmit = async () => {
@@ -43,7 +56,7 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
         description: description.trim() || undefined,
         mode,
         reward: reward.trim() ? Number(reward) : undefined,
-        namespace: DEFAULT_NAMESPACE,
+        namespace,
       })
       toast.success(t('tickets.createSuccessTitle'), t('tickets.createSuccessDescription', { title: title.trim() }))
       resetForm()
@@ -111,6 +124,21 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
                 step="0.01"
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>{t('tickets.fieldNamespace')}</Label>
+            <Select value={namespace} onValueChange={setNamespace}>
+              <SelectTrigger>
+                <SelectValue placeholder={t('tickets.fieldNamespacePlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                {allowedNamespaces.map((ns) => (
+                  <SelectItem key={ns.id} value={ns.slug}>
+                    {ns.displayName} (@{ns.slug})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
             {t('tickets.createNamespaceHint')}

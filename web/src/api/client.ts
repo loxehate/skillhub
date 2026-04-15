@@ -721,15 +721,22 @@ export const ticketApi = {
     return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}`)
   },
 
-  async create(request: TicketCreateRequest): Promise<Ticket> {
-    return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets`, {
-      method: 'POST',
-      headers: await ensureCsrfHeaders({
-        'Content-Type': 'application/json',
+    async create(request: TicketCreateRequest): Promise<Ticket> {
+      return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets`, {
+        method: 'POST',
+        headers: await ensureCsrfHeaders({
+          'Content-Type': 'application/json',
       }),
-      body: JSON.stringify(request),
-    })
-  },
+        body: JSON.stringify(request),
+      })
+    },
+
+    async cancel(ticketId: number): Promise<void> {
+      await fetchJson<void>(`${WEB_API_PREFIX}/tickets/${ticketId}`, {
+        method: 'DELETE',
+        headers: await ensureCsrfHeaders(),
+      })
+    },
 
   async claim(ticketId: number, teamId?: number | null): Promise<Ticket> {
       return fetchJson<Ticket>(`${WEB_API_PREFIX}/tickets/${ticketId}/claim`, {

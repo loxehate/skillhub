@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useAuth } from '@/features/auth/use-auth'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Label } from '@/shared/ui/label'
@@ -19,6 +20,7 @@ import {
 } from '@/shared/ui/select'
 import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
 import {
+  useCancelTicket,
   useClaimTicket,
   useRejectTicket,
   useStartTicket,
@@ -51,9 +53,11 @@ export function TicketDetailPage() {
   const { id } = useParams({ from: '/dashboard/tickets/$id' })
   const ticketId = Number(id)
   const { t, i18n } = useTranslation()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const { data: ticket, isLoading } = useTicketDetail(ticketId)
   const { data: namespaces } = useMyNamespaces()
+  const cancelMutation = useCancelTicket()
   const claimMutation = useClaimTicket()
   const startMutation = useStartTicket()
   const submitReviewMutation = useSubmitTicketReview()
@@ -83,6 +87,7 @@ export function TicketDetailPage() {
   const canSubmitSkill = ticket?.status === 'IN_PROGRESS'
   const canSubmitReview = ticket?.status === 'IN_PROGRESS' || ticket?.status === 'TEAM_REVIEW'
   const canReject = ticket?.status === 'TEAM_REVIEW'
+  const canCancel = !!ticket && ticket.status === 'OPEN' && user?.userId === ticket.creatorId
 
   const handleClaim = async () => {
     if (!ticket) return
@@ -101,6 +106,17 @@ export function TicketDetailPage() {
       toast.success(t('tickets.startSuccess'))
     } catch (error) {
       toast.error(t('tickets.startError'), error instanceof Error ? error.message : '')
+    }
+  }
+
+  const handleCancel = async () => {
+    if (!ticket) return
+    try {
+      await cancelMutation.mutateAsync(ticket.id)
+      toast.success(t('tickets.cancelSuccess'))
+      navigate({ to: '/dashboard/tickets' })
+    } catch (error) {
+      toast.error(t('tickets.cancelError'), error instanceof Error ? error.message : '')
     }
   }
 
@@ -269,6 +285,19 @@ export function TicketDetailPage() {
           </div>
         )}
 
+        {canCancel && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{t('tickets.cancelHint')}</p>
+            <Button
+              variant="destructive"
+              onClick={handleCancel}
+              disabled={cancelMutation.isPending}
+            >
+              {cancelMutation.isPending ? t('tickets.cancelling') : t('tickets.cancelAction')}
+            </Button>
+          </div>
+        )}
+
         {canStart && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">{t('tickets.startHint')}</p>
@@ -363,7 +392,7 @@ export function TicketDetailPage() {
           </div>
         )}
 
-        {!canClaim && !canStart && !canSubmitSkill && !canSubmitReview && !canReject && (
+        {!canClaim && !canCancel && !canStart && !canSubmitSkill && !canSubmitReview && !canReject && (
           <div className="rounded-xl border border-dashed border-border/70 p-6 text-center text-sm text-muted-foreground">
             {t('tickets.noActions')}
           </div>

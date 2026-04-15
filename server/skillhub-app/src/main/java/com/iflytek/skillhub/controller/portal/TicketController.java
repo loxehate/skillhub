@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
@@ -181,6 +182,15 @@ public class TicketController extends BaseApiController {
         }
 
         return ok("response.success.published", new TicketSubmitSkillResponse(ticketId, publishResponse));
+    }
+
+    @DeleteMapping("/{ticketId}")
+    public ApiResponse<Void> cancelTicket(
+            @PathVariable Long ticketId,
+            @AuthenticationPrincipal PlatformPrincipal principal,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+        ticketService.cancelTicket(ticketId, principal.userId(), userNsRoles, principal.platformRoles());
+        return ok("response.success.deleted", null);
     }
 
     private TicketMode parseMode(String mode) {

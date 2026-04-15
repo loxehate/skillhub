@@ -15,6 +15,7 @@ import com.iflytek.skillhub.domain.skill.SkillVisibility;
 import com.iflytek.skillhub.domain.skill.service.SkillPublishService;
 import com.iflytek.skillhub.domain.skill.validation.PackageEntry;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -263,7 +264,7 @@ public class TicketService {
                                    Set<String> platformRoles) {
         Ticket ticket = getTicket(ticketId);
         NamespaceRole namespaceRole = resolveNamespaceRole(ticket.getNamespaceId(), userNsRoles);
-        if (permissionChecker.canView(platformRoles, namespaceRole)) {
+        if (permissionChecker.canView(platformRoles, namespaceRole) || namespaceRole != null) {
             return ticket;
         }
         if (ticket.getCreatorId().equals(userId) || isAssignee(ticket, userId)) {
@@ -276,13 +277,30 @@ public class TicketService {
                                     String userId,
                                     Map<Long, NamespaceRole> userNsRoles,
                                     Set<String> platformRoles) {
+        Map<Long, NamespaceRole> namespaceRoles = userNsRoles != null ? userNsRoles : Map.of();
         if (namespaceSlug == null || namespaceSlug.isBlank()) {
-            return ticketRepository.findByCreatorId(userId);
+            if (platformRoles != null && (platformRoles.contains("SUPER_ADMIN")
+                    || platformRoles.contains("SKILL_ADMIN")
+                    || platformRoles.contains("USER_ADMIN")
+                    || platformRoles.contains("AUDITOR"))) {
+                return ticketRepository.findAll();
+            }
+            LinkedHashSet<Long> visibleIds = new LinkedHashSet<>();
+            if (!namespaceRoles.isEmpty()) {
+                ticketRepository.findByNamespaceIdIn(namespaceRoles.keySet().stream().toList())
+                        .forEach(ticket -> visibleIds.add(ticket.getId()));
+            }
+            ticketRepository.findByCreatorId(userId).forEach(ticket -> visibleIds.add(ticket.getId()));
+            collectClaimedTicketIds(userId, visibleIds);
+            if (visibleIds.isEmpty()) {
+                return List.of();
+            }
+            return ticketRepository.findByIdIn(List.copyOf(visibleIds));
         }
         Namespace namespace = namespaceRepository.findBySlug(namespaceSlug)
                 .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", namespaceSlug));
         NamespaceRole namespaceRole = resolveNamespaceRole(namespace.getId(), userNsRoles);
-        if (permissionChecker.canView(platformRoles, namespaceRole)) {
+        if (permissionChecker.canView(platformRoles, namespaceRole) || namespaceRole != null) {
             return ticketRepository.findByNamespaceId(namespace.getId());
         }
         List<Long> allowedIds = new ArrayList<>();
@@ -291,19 +309,27 @@ public class TicketService {
                 allowedIds.add(ticket.getId());
             }
         });
-        List<Long> teamIds = teamMemberRepository.findByUserId(userId).stream()
-                .map(TeamMember::getTeamId)
-                .distinct()
-                .toList();
-        ticketClaimRepository.findByUserIdAndStatus(userId, TicketClaimStatus.ACCEPTED).forEach(claim -> allowedIds.add(claim.getTicketId()));
-        if (!teamIds.isEmpty()) {
-            ticketClaimRepository.findByTeamIdInAndStatus(teamIds, TicketClaimStatus.ACCEPTED)
-                    .forEach(claim -> allowedIds.add(claim.getTicketId()));
-        }
+        collectClaimedTicketIds(userId, allowedIds);
         if (allowedIds.isEmpty()) {
             return List.of();
         }
         return ticketRepository.findByIdIn(allowedIds.stream().distinct().toList());
+    }
+
+    @Transactional
+    public void cancelTicket(Long ticketId,
+                             String userId,
+                             Map<Long, NamespaceRole> userNsRoles,
+                             Set<String> platformRoles) {
+        Ticket ticket = getTicket(ticketId);
+        NamespaceRole namespaceRole = resolveNamespaceRole(ticket.getNamespaceId(), userNsRoles);
+        boolean canManage = permissionChecker.canManage(platformRoles, namespaceRole);
+        boolean isCreator = ticket.getCreatorId().equals(userId);
+        if (!isCreator && !canManage) {
+            throw new DomainForbiddenException("error.ticket.noPermission");
+        }
+        ensureStatus(ticket, TicketStatus.OPEN);
+        ticketRepository.delete(ticket);
     }
 
     private Ticket getTicket(Long ticketId) {
@@ -335,6 +361,19 @@ public class TicketService {
         return ticketClaimRepository.findByTicketIdAndStatus(ticket.getId(), TicketClaimStatus.ACCEPTED)
                 .map(TicketClaim::getTeamId)
                 .orElse(null);
+    }
+
+    private void collectClaimedTicketIds(String userId, java.util.Collection<Long> ticketIds) {
+        List<Long> teamIds = teamMemberRepository.findByUserId(userId).stream()
+                .map(TeamMember::getTeamId)
+                .distinct()
+                .toList();
+        ticketClaimRepository.findByUserIdAndStatus(userId, TicketClaimStatus.ACCEPTED)
+                .forEach(claim -> ticketIds.add(claim.getTicketId()));
+        if (!teamIds.isEmpty()) {
+            ticketClaimRepository.findByTeamIdInAndStatus(teamIds, TicketClaimStatus.ACCEPTED)
+                    .forEach(claim -> ticketIds.add(claim.getTicketId()));
+        }
     }
 
     private void ensureAssigneeOrPermitted(Ticket ticket,
