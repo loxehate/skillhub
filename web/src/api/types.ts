@@ -482,7 +482,7 @@ export interface AuditLogItem {
 // Notification types
 export interface NotificationItem {
   id: number
-  category: 'PUBLISH' | 'REVIEW' | 'PROMOTION' | 'REPORT'
+  category: 'PUBLISH' | 'REVIEW' | 'PROMOTION' | 'REPORT' | 'TICKET'
   eventType: string
   title: string
   bodyJson?: string
@@ -497,7 +497,7 @@ export interface NotificationItem {
 }
 
 export interface NotificationPreferenceItem {
-  category: string
+  category: 'PUBLISH' | 'REVIEW' | 'PROMOTION' | 'REPORT' | 'TICKET' | string
   channel: string
   enabled: boolean
 }

@@ -15,9 +15,9 @@ import { Card } from '@/shared/ui/card'
 
 const PAGE_SIZE = 20
 
-type Category = 'ALL' | 'PUBLISH' | 'REVIEW' | 'PROMOTION' | 'REPORT'
+type Category = 'ALL' | 'PUBLISH' | 'REVIEW' | 'PROMOTION' | 'REPORT' | 'TICKET'
 
-const CATEGORIES: Category[] = ['ALL', 'PUBLISH', 'REVIEW', 'PROMOTION', 'REPORT']
+const CATEGORIES: Category[] = ['ALL', 'PUBLISH', 'REVIEW', 'PROMOTION', 'REPORT', 'TICKET']
 
 function getCategoryKey(cat: Category): string {
   switch (cat) {
@@ -26,6 +26,7 @@ function getCategoryKey(cat: Category): string {
     case 'REVIEW': return 'notification.review'
     case 'PROMOTION': return 'notification.promotion'
     case 'REPORT': return 'notification.report'
+    case 'TICKET': return 'notification.ticket'
   }
 }
 
@@ -49,6 +50,7 @@ function CategoryBadge({ category }: { category: NotificationItem['category'] })
     REVIEW: 'bg-yellow-100 text-yellow-700',
     PROMOTION: 'bg-green-100 text-green-700',
     REPORT: 'bg-red-100 text-red-700',
+    TICKET: 'bg-indigo-100 text-indigo-700',
   }
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${colorMap[category]}`}>

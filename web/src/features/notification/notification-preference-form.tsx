@@ -3,7 +3,7 @@ import type { NotificationPreferenceItem } from '@/api/types'
 import { useNotificationPreferences, useUpdateNotificationPreferences } from './use-notification-preferences'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 
-const CATEGORIES = ['PUBLISH', 'REVIEW', 'PROMOTION', 'REPORT'] as const
+const CATEGORIES = ['PUBLISH', 'REVIEW', 'PROMOTION', 'REPORT', 'TICKET'] as const
 type Category = (typeof CATEGORIES)[number]
 
 const CATEGORY_KEYS: Record<Category, { label: string; desc: string }> = {
@@ -11,6 +11,7 @@ const CATEGORY_KEYS: Record<Category, { label: string; desc: string }> = {
   REVIEW: { label: 'notification.preferences.review', desc: 'notification.preferences.reviewDesc' },
   PROMOTION: { label: 'notification.preferences.promotion', desc: 'notification.preferences.promotionDesc' },
   REPORT: { label: 'notification.preferences.report', desc: 'notification.preferences.reportDesc' },
+  TICKET: { label: 'notification.preferences.ticket', desc: 'notification.preferences.ticketDesc' },
 }
 
 function getEnabled(preferences: NotificationPreferenceItem[], category: string): boolean {

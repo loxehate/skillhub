@@ -3,6 +3,12 @@ package com.iflytek.skillhub.domain.ticket;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.event.TicketClaimedEvent;
+import com.iflytek.skillhub.domain.event.TicketClosedEvent;
+import com.iflytek.skillhub.domain.event.TicketCreatedEvent;
+import com.iflytek.skillhub.domain.event.TicketRejectedEvent;
+import com.iflytek.skillhub.domain.event.TicketReviewSubmittedEvent;
+import com.iflytek.skillhub.domain.event.TicketSkillSubmittedEvent;
 import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
@@ -13,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +32,7 @@ public class TicketService {
     private final TeamMemberRepository teamMemberRepository;
     private final NamespaceRepository namespaceRepository;
     private final SkillPublishService skillPublishService;
+    private final ApplicationEventPublisher eventPublisher;
     private final TicketPermissionChecker permissionChecker = new TicketPermissionChecker();
 
     public TicketService(TicketRepository ticketRepository,
@@ -32,13 +40,15 @@ public class TicketService {
                          TeamRepository teamRepository,
                          TeamMemberRepository teamMemberRepository,
                          NamespaceRepository namespaceRepository,
-                         SkillPublishService skillPublishService) {
+                         SkillPublishService skillPublishService,
+                         ApplicationEventPublisher eventPublisher) {
         this.ticketRepository = ticketRepository;
         this.ticketClaimRepository = ticketClaimRepository;
         this.teamRepository = teamRepository;
         this.teamMemberRepository = teamMemberRepository;
         this.namespaceRepository = namespaceRepository;
         this.skillPublishService = skillPublishService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -75,6 +85,14 @@ public class TicketService {
         if (saved.getStatus() == TicketStatus.CLAIMED) {
             ticketClaimRepository.save(new TicketClaim(saved.getId(), targetUserId, targetTeamId, TicketClaimStatus.ACCEPTED));
         }
+        eventPublisher.publishEvent(new TicketCreatedEvent(
+                saved.getId(),
+                saved.getTitle(),
+                saved.getNamespaceId(),
+                creatorId,
+                saved.getTargetTeamId(),
+                saved.getTargetUserId()
+        ));
         return saved;
     }
 
@@ -103,6 +121,14 @@ public class TicketService {
         ticket.setStatus(TicketStatus.CLAIMED);
         Ticket saved = ticketRepository.save(ticket);
         ticketClaimRepository.save(new TicketClaim(saved.getId(), userId, teamId, TicketClaimStatus.ACCEPTED));
+        eventPublisher.publishEvent(new TicketClaimedEvent(
+                saved.getId(),
+                saved.getTitle(),
+                saved.getNamespaceId(),
+                saved.getCreatorId(),
+                userId,
+                teamId
+        ));
         return saved;
     }
 
@@ -129,7 +155,15 @@ public class TicketService {
         ensureStatus(ticket, TicketStatus.IN_PROGRESS);
         ensureAssigneeOrPermitted(ticket, userId, userNsRoles, platformRoles);
         ticket.setStatus(TicketStatus.TEAM_REVIEW);
-        return ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.save(ticket);
+        eventPublisher.publishEvent(new TicketReviewSubmittedEvent(
+                saved.getId(),
+                saved.getTitle(),
+                saved.getNamespaceId(),
+                saved.getCreatorId(),
+                userId
+        ));
+        return saved;
     }
 
     @Transactional
@@ -145,7 +179,15 @@ public class TicketService {
             throw new DomainForbiddenException("error.ticket.noPermission");
         }
         ticket.setStatus(TicketStatus.REJECTED);
-        return ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.save(ticket);
+        eventPublisher.publishEvent(new TicketRejectedEvent(
+                saved.getId(),
+                saved.getTitle(),
+                saved.getNamespaceId(),
+                saved.getCreatorId(),
+                userId
+        ));
+        return saved;
     }
 
     @Transactional
@@ -178,7 +220,16 @@ public class TicketService {
         ticket.setStatus(TicketStatus.SUBMITTED);
         ticket.setSubmitSkillId(publishResult.skillId());
         ticket.setSubmitSkillVersionId(publishResult.version().getId());
-        ticketRepository.save(ticket);
+        Ticket saved = ticketRepository.save(ticket);
+        eventPublisher.publishEvent(new TicketSkillSubmittedEvent(
+                saved.getId(),
+                saved.getTitle(),
+                saved.getNamespaceId(),
+                saved.getCreatorId(),
+                userId,
+                publishResult.skillId(),
+                publishResult.version().getId()
+        ));
 
         return publishResult;
     }
@@ -189,7 +240,16 @@ public class TicketService {
         ticket.ifPresent(found -> {
             if (found.getStatus() == TicketStatus.SUBMITTED) {
                 found.setStatus(TicketStatus.DONE);
-                ticketRepository.save(found);
+                Ticket saved = ticketRepository.save(found);
+                eventPublisher.publishEvent(new TicketClosedEvent(
+                        saved.getId(),
+                        saved.getTitle(),
+                        saved.getNamespaceId(),
+                        saved.getCreatorId(),
+                        saved.getStatus().name(),
+                        skillId,
+                        versionId
+                ));
             }
         });
     }
@@ -200,7 +260,16 @@ public class TicketService {
         ticket.ifPresent(found -> {
             if (found.getStatus() == TicketStatus.SUBMITTED) {
                 found.setStatus(TicketStatus.FAILED);
-                ticketRepository.save(found);
+                Ticket saved = ticketRepository.save(found);
+                eventPublisher.publishEvent(new TicketClosedEvent(
+                        saved.getId(),
+                        saved.getTitle(),
+                        saved.getNamespaceId(),
+                        saved.getCreatorId(),
+                        saved.getStatus().name(),
+                        skillId,
+                        versionId
+                ));
             }
         });
     }

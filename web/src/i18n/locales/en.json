@@ -1021,8 +1021,8 @@
     "fieldRewardPlaceholder": "Optional bounty amount",
     "fieldNamespace": "Namespace",
     "fieldNamespacePlaceholder": "Select namespace",
-    "fieldTargetTeam": "Target Team ID",
-    "fieldTargetTeamPlaceholder": "Optional team id",
+    "fieldTargetTeam": "Target Team",
+    "fieldTargetTeamPlaceholder": "Select team",
     "fieldTargetUser": "Target User ID",
     "fieldTargetUserPlaceholder": "Optional user id",
     "createErrorTitle": "Failed to create ticket",
@@ -1522,6 +1522,7 @@
     "review": "Review",
     "promotion": "Promotion",
     "report": "Report",
+    "ticket": "Ticket",
     "timeAgo": "{{time}} ago",
     "preferences": {
       "title": "Notification Settings",
@@ -1533,7 +1534,9 @@
       "promotion": "Promotion Notifications",
       "promotionDesc": "Notify on promotion request, approval, or rejection",
       "report": "Report Notifications",
-      "reportDesc": "Notify on report submission or resolution"
+      "reportDesc": "Notify on report submission or resolution",
+      "ticket": "Ticket Notifications",
+      "ticketDesc": "Notify on ticket assignment, review, submission, and completion"
     }
   }
 }

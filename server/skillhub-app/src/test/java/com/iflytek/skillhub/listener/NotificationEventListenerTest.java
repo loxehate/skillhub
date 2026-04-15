@@ -156,4 +156,15 @@ class NotificationEventListenerTest {
         verify(dispatcher).dispatch(eq("reporter-1"), eq(NotificationCategory.REPORT),
                 eq("REPORT_RESOLVED"), anyString(), anyString(), eq("SKILL"), eq(1L));
     }
+
+    @Test
+    void onTicketClaimed_shouldDispatchToCreator() throws Exception {
+        mockNamespace();
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        listener.onTicketClaimed(new TicketClaimedEvent(88L, "Ticket Alpha", 5L, "creator-1", "claimer-1", null));
+
+        verify(dispatcher).dispatch(eq("creator-1"), eq(NotificationCategory.TICKET),
+                eq("TICKET_CLAIMED"), anyString(), anyString(), eq("TICKET"), eq(88L));
+    }
 }

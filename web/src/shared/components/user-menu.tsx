@@ -152,9 +152,6 @@ export function UserMenu({ user, triggerClassName }: UserMenuProps) {
             <Link to="/dashboard/tickets" className={menuItemClassName} onClick={closeMenu}>
               {t('user.menu.tickets')}
             </Link>
-            <Link to="/dashboard/teams" className={menuItemClassName} onClick={closeMenu}>
-              {t('user.menu.teams')}
-            </Link>
             {canSeeGovernance ? (
               <Link to="/dashboard/governance" className={menuItemClassName} onClick={closeMenu}>
                 {t('user.menu.governance')}

@@ -119,6 +119,9 @@ public class NotificationController extends BaseApiController {
         if ("REPORT_SUBMITTED".equals(eventType)) {
             return new NotificationTarget("REPORT", entityId, "/dashboard/reports");
         }
+        if ("TICKET".equals(entityType) && entityId != null) {
+            return new NotificationTarget("TICKET", entityId, "/dashboard/tickets/" + entityId);
+        }
         if (namespace != null && slug != null && ("SKILL".equals(entityType) || notification.getCategory() == NotificationCategory.PUBLISH)) {
             return new NotificationTarget("SKILL", entityId, "/space/" + namespace + "/" + slug);
         }

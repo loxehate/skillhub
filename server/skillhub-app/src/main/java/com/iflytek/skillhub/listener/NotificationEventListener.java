@@ -189,6 +189,101 @@ public class NotificationEventListener {
         });
     }
 
+    @Async("skillhubEventExecutor")
+    @TransactionalEventListener
+    public void onTicketCreated(TicketCreatedEvent event) {
+        String title = "Ticket created: " + event.title();
+        Map<String, Object> body = bodyWithTicket(event.ticketId(), event.title(), event.namespaceId());
+        String json = toJson(body);
+
+        if (event.targetUserId() != null && !event.targetUserId().isBlank() && !event.targetUserId().equals(event.creatorId())) {
+            dispatcher.dispatch(event.targetUserId(), NotificationCategory.TICKET,
+                    "TICKET_CREATED", title, json, "TICKET", event.ticketId());
+        }
+
+        if (event.targetTeamId() != null) {
+            for (String userId : recipientResolver.resolveTeamMembers(event.targetTeamId())) {
+                if (!userId.equals(event.creatorId())) {
+                    dispatcher.dispatch(userId, NotificationCategory.TICKET,
+                            "TICKET_CREATED", title, json, "TICKET", event.ticketId());
+                }
+            }
+        }
+    }
+
+    @Async("skillhubEventExecutor")
+    @TransactionalEventListener
+    public void onTicketClaimed(TicketClaimedEvent event) {
+        String title = "Ticket claimed: " + event.title();
+        Map<String, Object> body = bodyWithTicket(event.ticketId(), event.title(), event.namespaceId());
+        body.put("claimerId", event.claimerId());
+        String json = toJson(body);
+        if (!event.creatorId().equals(event.claimerId())) {
+            dispatcher.dispatch(event.creatorId(), NotificationCategory.TICKET,
+                    "TICKET_CLAIMED", title, json, "TICKET", event.ticketId());
+        }
+    }
+
+    @Async("skillhubEventExecutor")
+    @TransactionalEventListener
+    public void onTicketReviewSubmitted(TicketReviewSubmittedEvent event) {
+        String title = "Ticket submitted for review: " + event.title();
+        Map<String, Object> body = bodyWithTicket(event.ticketId(), event.title(), event.namespaceId());
+        body.put("submitterId", event.submitterId());
+        String json = toJson(body);
+
+        for (String admin : recipientResolver.resolveNamespaceAdmins(event.namespaceId()).stream().distinct().toList()) {
+            if (!admin.equals(event.submitterId())) {
+                dispatcher.dispatch(admin, NotificationCategory.TICKET,
+                        "TICKET_REVIEW_SUBMITTED", title, json, "TICKET", event.ticketId());
+            }
+        }
+
+        if (!event.creatorId().equals(event.submitterId())) {
+            dispatcher.dispatch(event.creatorId(), NotificationCategory.TICKET,
+                    "TICKET_REVIEW_SUBMITTED", title, json, "TICKET", event.ticketId());
+        }
+    }
+
+    @Async("skillhubEventExecutor")
+    @TransactionalEventListener
+    public void onTicketRejected(TicketRejectedEvent event) {
+        String title = "Ticket rejected: " + event.title();
+        Map<String, Object> body = bodyWithTicket(event.ticketId(), event.title(), event.namespaceId());
+        body.put("reviewerId", event.reviewerId());
+        String json = toJson(body);
+        dispatcher.dispatch(event.creatorId(), NotificationCategory.TICKET,
+                "TICKET_REJECTED", title, json, "TICKET", event.ticketId());
+    }
+
+    @Async("skillhubEventExecutor")
+    @TransactionalEventListener
+    public void onTicketSkillSubmitted(TicketSkillSubmittedEvent event) {
+        String title = "Ticket skill submitted: " + event.title();
+        Map<String, Object> body = bodyWithTicket(event.ticketId(), event.title(), event.namespaceId());
+        body.put("submitterId", event.submitterId());
+        body.put("skillId", event.skillId());
+        body.put("versionId", event.versionId());
+        String json = toJson(body);
+        dispatcher.dispatch(event.creatorId(), NotificationCategory.TICKET,
+                "TICKET_SKILL_SUBMITTED", title, json, "TICKET", event.ticketId());
+    }
+
+    @Async("skillhubEventExecutor")
+    @TransactionalEventListener
+    public void onTicketClosed(TicketClosedEvent event) {
+        String title = "DONE".equals(event.status())
+                ? "Ticket completed: " + event.title()
+                : "Ticket failed: " + event.title();
+        Map<String, Object> body = bodyWithTicket(event.ticketId(), event.title(), event.namespaceId());
+        body.put("status", event.status());
+        body.put("skillId", event.skillId());
+        body.put("versionId", event.versionId());
+        String json = toJson(body);
+        dispatcher.dispatch(event.creatorId(), NotificationCategory.TICKET,
+                "TICKET_CLOSED", title, json, "TICKET", event.ticketId());
+    }
+
     // --- helpers ---
 
     private String skillDisplayName(Skill skill) {
@@ -203,6 +298,17 @@ public class NotificationEventListener {
         map.put("slug", skill.getSlug());
         namespaceRepository.findById(skill.getNamespaceId())
                 .ifPresent(namespace -> map.put("namespace", namespace.getSlug()));
+        return map;
+    }
+
+    private Map<String, Object> bodyWithTicket(Long ticketId, String title, Long namespaceId) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("ticketId", ticketId);
+        map.put("ticketTitle", title);
+        if (namespaceId != null) {
+            namespaceRepository.findById(namespaceId)
+                    .ifPresent(namespace -> map.put("namespace", namespace.getSlug()));
+        }
         return map;
     }
 

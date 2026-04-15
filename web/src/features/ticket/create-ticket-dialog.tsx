@@ -8,6 +8,7 @@ import { Label } from '@/shared/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { useCreateTicket } from '@/shared/hooks/use-ticket-queries'
 import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
+import { useTeams } from '@/shared/hooks/use-team-queries'
 import { toast } from '@/shared/lib/toast'
 
 interface CreateTicketDialogProps {
@@ -30,6 +31,12 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
   const [targetUserId, setTargetUserId] = useState('')
 
   const namespaceOptions = useMemo(() => namespaces ?? [], [namespaces])
+  const selectedNamespace = useMemo(
+    () => namespaceOptions.find((item) => item.slug === namespace),
+    [namespace, namespaceOptions],
+  )
+  const { data: teams } = useTeams(selectedNamespace?.id)
+  const teamOptions = useMemo(() => teams ?? [], [teams])
 
   const resetForm = () => {
     setTitle('')
@@ -140,13 +147,24 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="ticket-team">{t('tickets.fieldTargetTeam')}</Label>
-              <Input
-                id="ticket-team"
-                value={targetTeamId}
-                onChange={(event) => setTargetTeamId(event.target.value)}
-                placeholder={t('tickets.fieldTargetTeamPlaceholder')}
-              />
+              <Label>{t('tickets.fieldTargetTeam')}</Label>
+              <Select
+                value={targetTeamId || 'none'}
+                onValueChange={(value) => setTargetTeamId(value === 'none' ? '' : value)}
+                disabled={!selectedNamespace}
+              >
+                <SelectTrigger id="ticket-team">
+                  <SelectValue placeholder={t('tickets.fieldTargetTeamPlaceholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t('tickets.claimTeamNone')}</SelectItem>
+                  {teamOptions.map((team) => (
+                    <SelectItem key={team.id} value={String(team.id)}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="ticket-user">{t('tickets.fieldTargetUser')}</Label>

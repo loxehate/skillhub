@@ -4,6 +4,8 @@ import com.iflytek.skillhub.auth.repository.UserRoleBindingRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceMember;
 import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.ticket.TeamMember;
+import com.iflytek.skillhub.domain.ticket.TeamMemberRepository;
 import java.util.LinkedHashSet;
 import org.springframework.stereotype.Component;
 
@@ -15,11 +17,14 @@ public class RecipientResolver {
 
     private final NamespaceMemberRepository namespaceMemberRepository;
     private final UserRoleBindingRepository userRoleBindingRepository;
+    private final TeamMemberRepository teamMemberRepository;
 
     public RecipientResolver(NamespaceMemberRepository namespaceMemberRepository,
-                              UserRoleBindingRepository userRoleBindingRepository) {
+                              UserRoleBindingRepository userRoleBindingRepository,
+                              TeamMemberRepository teamMemberRepository) {
         this.namespaceMemberRepository = namespaceMemberRepository;
         this.userRoleBindingRepository = userRoleBindingRepository;
+        this.teamMemberRepository = teamMemberRepository;
     }
 
     public List<String> resolveNamespaceAdmins(Long namespaceId) {
@@ -34,6 +39,16 @@ public class RecipientResolver {
         return userRoleBindingRepository.findByRole_CodeIn(Set.of("SKILL_ADMIN", "SUPER_ADMIN"))
                 .stream()
                 .map(binding -> binding.getUserId())
+                .collect(java.util.stream.Collectors.collectingAndThen(
+                        java.util.stream.Collectors.toCollection(LinkedHashSet::new),
+                        List::copyOf
+                ));
+    }
+
+    public List<String> resolveTeamMembers(Long teamId) {
+        return teamMemberRepository.findByTeamId(teamId)
+                .stream()
+                .map(TeamMember::getUserId)
                 .collect(java.util.stream.Collectors.collectingAndThen(
                         java.util.stream.Collectors.toCollection(LinkedHashSet::new),
                         List::copyOf
