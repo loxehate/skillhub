@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Outlet, Link, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { AiAssistantEntry } from '@/features/agent/components/ai-assistant-entry'
 import { useAuth } from '@/features/auth/use-auth'
 import { LanguageSwitcher } from '@/shared/components/language-switcher'
 import { UserMenu } from '@/shared/components/user-menu'
@@ -51,6 +52,7 @@ export function Layout() {
     { label: t('nav.search'), to: '/search' },
     { label: t('nav.dashboard'), to: '/dashboard', auth: true },
     { label: t('nav.tickets'), to: '/dashboard/tickets', auth: true },
+    { label: t('nav.agent'), to: '/dashboard/agent', auth: true },
     { label: t('nav.mySkills'), to: '/dashboard/skills', auth: true },
   ]
 
@@ -216,6 +218,8 @@ export function Layout() {
           </div>
         </div>
       </footer>
+
+      <AiAssistantEntry />
     </div>
   )
 }

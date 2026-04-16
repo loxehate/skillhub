@@ -66,132 +66,132 @@ export function useAgentChat(options?: UseAgentChatOptions) {
       createdAt: nowIso(),
     })
 
-    const response = await fetch(buildApiUrl('/agent/chat'), {
-      method: 'POST',
-      headers: {
-        ...getCsrfHeaders({
-          'Content-Type': 'application/json',
-        }),
-      },
-      body: JSON.stringify({
-        session_id: sessionId,
-        message: params.message,
-        mode: params.mode,
-        context: params.context,
-      } satisfies AgentChatRequest),
-      signal: controller.signal,
-    })
+    try {
+      const response = await fetch(buildApiUrl('/api/web/agent/chat'), {
+        method: 'POST',
+        headers: {
+          ...getCsrfHeaders({
+            'Content-Type': 'application/json',
+          }),
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          message: params.message,
+          mode: params.mode,
+          context: params.context,
+        } satisfies AgentChatRequest),
+        signal: controller.signal,
+      })
 
-    if (!response.ok || !response.body) {
-      throw new ApiError(`Agent request failed: HTTP ${response.status}`, response.status)
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let currentAssistantId: string | null = null
-
-    const flushEvent = (raw: string) => {
-      const lines = raw.split('\n')
-      let eventName = 'message'
-      const dataLines: string[] = []
-
-      for (const line of lines) {
-        if (line.startsWith('event:')) {
-          eventName = line.slice(6).trim()
-        }
-        if (line.startsWith('data:')) {
-          dataLines.push(line.slice(5).trim())
-        }
+      if (!response.ok || !response.body) {
+        throw new ApiError(`Agent request failed: HTTP ${response.status}`, response.status)
       }
 
-      const dataText = dataLines.join('\n')
-      if (!dataText) {
-        return
-      }
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let currentAssistantId: string | null = null
 
-      const payload = JSON.parse(dataText) as Record<string, unknown>
+      const flushEvent = (raw: string) => {
+        const lines = raw.split('\n')
+        let eventName = 'message'
+        const dataLines: string[] = []
 
-      switch (eventName) {
-        case 'session_started':
-          if (typeof payload.session_id === 'string' && payload.session_id) {
-            setSessionId(payload.session_id)
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventName = line.slice(6).trim()
           }
-          break
+          if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).trim())
+          }
+        }
 
-        case 'assistant_delta':
-          if (!currentAssistantId) {
-            currentAssistantId = uid('assistant')
+        const dataText = dataLines.join('\n')
+        if (!dataText) {
+          return
+        }
+
+        const payload = JSON.parse(dataText) as Record<string, unknown>
+
+        switch (eventName) {
+          case 'session_started':
+            if (typeof payload.session_id === 'string' && payload.session_id) {
+              setSessionId(payload.session_id)
+            }
+            break
+
+          case 'assistant_delta':
+            if (!currentAssistantId) {
+              currentAssistantId = uid('assistant')
+              appendMessage({
+                id: currentAssistantId,
+                role: 'assistant',
+                content: '',
+                streaming: true,
+                createdAt: nowIso(),
+              })
+            }
+            if (typeof payload.delta === 'string') {
+              updateAssistantDelta(currentAssistantId, payload.delta)
+            }
+            break
+
+          case 'assistant_done':
+            if (currentAssistantId) {
+              finishAssistant(currentAssistantId)
+              currentAssistantId = null
+            }
+            break
+
+          case 'tool_started':
             appendMessage({
-              id: currentAssistantId,
-              role: 'assistant',
-              content: '',
-              streaming: true,
+              id: uid('tool'),
+              role: 'tool',
+              toolName: String(payload.tool_name ?? 'tool'),
+              status: 'running',
+              detail: typeof payload.detail === 'string' ? payload.detail : undefined,
               createdAt: nowIso(),
             })
+            break
+
+          case 'tool_finished':
+            appendMessage({
+              id: uid('tool'),
+              role: 'tool',
+              toolName: String(payload.tool_name ?? 'tool'),
+              status: 'success',
+              detail: typeof payload.detail === 'string' ? payload.detail : undefined,
+              createdAt: nowIso(),
+            })
+            break
+
+          case 'structured_result': {
+            const suggestion = payload.payload as TicketAnalyzeSuggestion
+            appendMessage({
+              id: uid('suggestion'),
+              role: 'suggestion',
+              suggestion,
+              createdAt: nowIso(),
+            })
+            options?.onSuggestion?.(suggestion)
+            break
           }
-          if (typeof payload.delta === 'string') {
-            updateAssistantDelta(currentAssistantId, payload.delta)
-          }
-          break
 
-        case 'assistant_done':
-          if (currentAssistantId) {
-            finishAssistant(currentAssistantId)
-            currentAssistantId = null
-          }
-          break
+          case 'error':
+            appendMessage({
+              id: uid('error'),
+              role: 'error',
+              content: String(payload.message ?? 'Unknown agent error'),
+              createdAt: nowIso(),
+            })
+            break
 
-        case 'tool_started':
-          appendMessage({
-            id: uid('tool'),
-            role: 'tool',
-            toolName: String(payload.tool_name ?? 'tool'),
-            status: 'running',
-            detail: typeof payload.detail === 'string' ? payload.detail : undefined,
-            createdAt: nowIso(),
-          })
-          break
-
-        case 'tool_finished':
-          appendMessage({
-            id: uid('tool'),
-            role: 'tool',
-            toolName: String(payload.tool_name ?? 'tool'),
-            status: 'success',
-            detail: typeof payload.detail === 'string' ? payload.detail : undefined,
-            createdAt: nowIso(),
-          })
-          break
-
-        case 'structured_result': {
-          const suggestion = payload.payload as TicketAnalyzeSuggestion
-          appendMessage({
-            id: uid('suggestion'),
-            role: 'suggestion',
-            suggestion,
-            createdAt: nowIso(),
-          })
-          options?.onSuggestion?.(suggestion)
-          break
+          case 'done':
+            setIsStreaming(false)
+            break
         }
-
-        case 'error':
-          appendMessage({
-            id: uid('error'),
-            role: 'error',
-            content: String(payload.message ?? 'Unknown agent error'),
-            createdAt: nowIso(),
-          })
-          break
-
-        case 'done':
-          setIsStreaming(false)
-          break
       }
-    }
 
-    try {
       while (true) {
         const { value, done } = await reader.read()
         if (done) {

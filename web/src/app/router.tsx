@@ -93,6 +93,7 @@ const ReviewsPage = createRoleProtectedRouteComponent(
 )
 const TicketsPage = createLazyRouteComponent(() => import('@/pages/dashboard/tickets'), 'TicketsPage')
 const TicketDetailPage = createLazyRouteComponent(() => import('@/pages/dashboard/ticket-detail'), 'TicketDetailPage')
+const AgentPage = createLazyRouteComponent(() => import('@/pages/dashboard/agent'), 'AgentPage')
 const ReportsPage = createRoleProtectedRouteComponent(
   () => import('@/pages/dashboard/reports'),
   'ReportsPage',
@@ -300,6 +301,13 @@ const dashboardTicketDetailRoute = createRoute({
   component: TicketDetailPage,
 })
 
+const dashboardAgentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'dashboard/agent',
+  beforeLoad: requireAuth,
+  component: AgentPage,
+})
+
 const dashboardReportsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'dashboard/reports',
@@ -428,6 +436,7 @@ const routeTree = rootRoute.addChildren([
   dashboardReviewsRoute,
   dashboardTicketsRoute,
   dashboardTicketDetailRoute,
+  dashboardAgentRoute,
   dashboardReportsRoute,
   dashboardReviewDetailRoute,
   dashboardPromotionsRoute,

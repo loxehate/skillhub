@@ -10,7 +10,8 @@
     "tickets": "Tickets",
     "teams": "Teams",
     "publish": "Publish",
-    "login": "Login"
+    "login": "Login",
+    "agent": "Agent"
   },
   "landing": {
     "hero": {
@@ -305,7 +306,9 @@
     "reportsTitle": "Report Management",
     "viewReports": "View skill reports",
     "previewMore": "...",
-    "previewMoreLabel": "View All"
+    "previewMoreLabel": "View All",
+    "agentTitle": "OpenClaw Agent",
+    "openAgent": "Open Agent"
   },
   "mySkills": {
     "title": "My Skills",
@@ -1334,7 +1337,8 @@
       "profile": "Profile Settings",
       "notifications": "Notification Settings",
       "accounts": "Account Merge",
-      "logout": "Logout"
+      "logout": "Logout",
+      "agent": "Agent"
     }
   },
   "footer": {
@@ -1562,13 +1566,32 @@
   "agent": {
     "analyzeAction": "Analyze",
     "descriptionRequired": "Please enter the description first.",
-    "ticketAnalyzePrompt": "Please analyze this ticket request and suggest title, mode, amount, acceptance criteria, and risks.",
+    "ticketAnalyzePrompt": "Please analyze this ticket request and suggest title, mode, amount, acceptance criteria, risks, similar skills, and a development outline.",
     "latestSuggestionTitle": "Latest Analysis Suggestion",
     "applySuggestion": "Apply Suggestion",
     "applySuggestionSuccess": "The analysis suggestion has been applied to the form.",
     "dismissSuggestion": "Dismiss",
     "acceptanceCriteria": "Acceptance Criteria",
     "riskPoints": "Risk Points",
-    "clarificationQuestions": "Clarification Questions"
+    "clarificationQuestions": "Clarification Questions",
+    "completenessIssues": "Completeness Issues",
+    "rationalityAssessment": "Rationality Assessment",
+    "estimatedComplexity": "Estimated Complexity",
+    "estimatedEffort": "Estimated Effort",
+    "suggestedRewardRange": "Suggested Reward Range",
+    "similarSkills": "Similar Skills",
+    "developmentOutline": "Development Outline",
+    "pageTitle": "OpenClaw Agent",
+    "pageDescription": "Use the embedded OpenClaw workspace for intelligent Q&A and task execution.",
+    "openInNewTab": "Open in New Tab",
+    "embedNotConfiguredTitle": "Agent Embed Is Not Configured",
+    "embedNotConfiguredDescription": "Set SKILLHUB_AGENT_EMBED_URL or SKILLHUB_WEB_OPENCLAW_EMBED_URL to embed the OpenClaw or Open WebUI page here.",
+    "assistantTitle": "AI Assistant",
+    "assistantDescription": "Ask about SkillHub publishing, review workflow, tickets, and platform usage at any time.",
+    "assistantTrigger": "AI Assistant",
+    "inputPlaceholder": "Ask the assistant anything about SkillHub.",
+    "stopAction": "Stop",
+    "sendAction": "Send",
+    "analyzing": "Analyzing..."
   }
 }

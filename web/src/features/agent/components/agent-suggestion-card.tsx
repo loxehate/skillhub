@@ -69,6 +69,28 @@ export function AgentSuggestionCard({ suggestion, onApply }: AgentSuggestionCard
         </div>
       ) : null}
 
+      {suggestion.similarSkills?.length ? (
+        <div className="space-y-1 text-sm">
+          <div className="text-muted-foreground">{t('agent.similarSkills', { defaultValue: 'Similar Skills' })}</div>
+          <ul className="list-disc pl-5">
+            {suggestion.similarSkills.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {suggestion.developmentOutline?.length ? (
+        <div className="space-y-1 text-sm">
+          <div className="text-muted-foreground">{t('agent.developmentOutline', { defaultValue: 'Development Outline' })}</div>
+          <ul className="list-disc pl-5">
+            {suggestion.developmentOutline.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {onApply ? (
         <div className="flex justify-end">
           <Button type="button" variant="outline" onClick={() => onApply(suggestion)}>

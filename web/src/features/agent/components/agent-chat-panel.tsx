@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Textarea } from '@/shared/ui/textarea'
@@ -21,6 +22,7 @@ export function AgentChatPanel({
   autoRun = false,
   onApplySuggestion,
 }: AgentChatPanelProps) {
+  const { t } = useTranslation()
   const [input, setInput] = useState(initialPrompt ?? '')
   const hasStartedRef = useRef(false)
   const { messages, isStreaming, send, interrupt } = useAgentChat({
@@ -87,16 +89,18 @@ export function AgentChatPanel({
           value={input}
           onChange={(event) => setInput(event.target.value)}
           rows={4}
-          placeholder="Ask the agent for analysis"
+          placeholder={t('agent.inputPlaceholder', { defaultValue: 'Ask the assistant anything about SkillHub.' })}
         />
         <div className="flex justify-end gap-2">
           {isStreaming ? (
             <Button type="button" variant="outline" onClick={interrupt}>
-              Stop
+              {t('agent.stopAction', { defaultValue: 'Stop' })}
             </Button>
           ) : null}
           <Button type="button" onClick={() => void handleSend()} disabled={isStreaming || !input.trim()}>
-            {isStreaming ? 'Analyzing...' : 'Send'}
+            {isStreaming
+              ? t('agent.analyzing', { defaultValue: 'Analyzing...' })
+              : t('agent.sendAction', { defaultValue: 'Send' })}
           </Button>
         </div>
       </div>

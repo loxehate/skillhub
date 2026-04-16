@@ -1,4 +1,4 @@
-export type AgentMode = 'chat' | 'ticket_analyze'
+export type AgentMode = 'general_chat' | 'ticket_analyze' | 'ticket_assistant'
 
 export interface TicketAnalyzeSuggestion {
   summary?: string
@@ -6,6 +6,13 @@ export interface TicketAnalyzeSuggestion {
   mode?: 'BOUNTY' | 'ASSIGN'
   namespace?: string
   amount?: number
+  completenessIssues?: string[]
+  rationalityAssessment?: string
+  estimatedComplexity?: string
+  estimatedEffort?: string
+  suggestedRewardRange?: string
+  similarSkills?: string[]
+  developmentOutline?: string[]
   acceptanceCriteria?: string[]
   riskPoints?: string[]
   clarificationQuestions?: string[]

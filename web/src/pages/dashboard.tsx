@@ -96,6 +96,12 @@ export function DashboardPage() {
           </Link>
         </Card>
         <Card className="p-5">
+          <div className="text-sm text-muted-foreground">{t('dashboard.agentTitle', { defaultValue: 'OpenClaw Agent' })}</div>
+          <Link to="/dashboard/agent" className="mt-2 inline-block font-semibold text-primary hover:underline">
+            {t('dashboard.openAgent', { defaultValue: 'Open Agent' })}
+          </Link>
+        </Card>
+        <Card className="p-5">
           <div className="text-sm text-muted-foreground">{t('dashboard.credentials')}</div>
           <Link to="/dashboard/tokens" className="mt-2 inline-block font-semibold text-primary hover:underline">
             {t('dashboard.openTokens')}

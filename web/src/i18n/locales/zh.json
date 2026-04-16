@@ -10,7 +10,8 @@
     "tickets": "工单",
     "teams": "团队",
     "publish": "发布",
-    "login": "登录"
+    "login": "登录",
+    "agent": "智能体"
   },
   "landing": {
     "hero": {
@@ -305,7 +306,9 @@
     "reportsTitle": "举报管理",
     "viewReports": "查看技能举报",
     "previewMore": "...",
-    "previewMoreLabel": "查看全部"
+    "previewMoreLabel": "查看全部",
+    "agentTitle": "OpenClaw 智能体",
+    "openAgent": "打开智能体"
   },
   "mySkills": {
     "title": "我的技能",
@@ -1334,7 +1337,8 @@
       "profile": "Profile Settings",
       "notifications": "Notification Settings",
       "accounts": "Account Merge",
-      "logout": "Logout"
+      "logout": "Logout",
+      "agent": "智能体"
     }
   },
   "footer": {
@@ -1562,13 +1566,32 @@
   "agent": {
     "analyzeAction": "分析",
     "descriptionRequired": "请先填写详细说明。",
-    "ticketAnalyzePrompt": "请分析这条工单需求，并输出建议标题、模式、金额、验收标准和风险点。",
+    "ticketAnalyzePrompt": "请分析这条工单需求，并输出建议标题、模式、金额、验收标准、风险点、相似技能和开发大纲。",
     "latestSuggestionTitle": "最新分析建议",
     "applySuggestion": "应用建议",
     "applySuggestionSuccess": "分析建议已应用到表单。",
     "dismissSuggestion": "忽略",
     "acceptanceCriteria": "验收标准",
     "riskPoints": "风险点",
-    "clarificationQuestions": "待确认问题"
+    "clarificationQuestions": "待确认问题",
+    "completenessIssues": "完整性缺项",
+    "rationalityAssessment": "合理性评估",
+    "estimatedComplexity": "预估复杂度",
+    "estimatedEffort": "预估工期",
+    "suggestedRewardRange": "建议金额区间",
+    "similarSkills": "相似技能",
+    "developmentOutline": "开发大纲",
+    "pageTitle": "OpenClaw 智能体",
+    "pageDescription": "在当前平台内直接使用 OpenClaw 会话工作区，进行智能问答和任务执行。",
+    "openInNewTab": "新标签页打开",
+    "embedNotConfiguredTitle": "未配置智能体嵌入",
+    "embedNotConfiguredDescription": "请配置 SKILLHUB_AGENT_EMBED_URL 或 SKILLHUB_WEB_OPENCLAW_EMBED_URL，以便在此嵌入 OpenClaw 或 Open WebUI 页面。",
+    "assistantTitle": "AI ??",
+    "assistantDescription": "???? SkillHub ?????????????????",
+    "assistantTrigger": "AI ??",
+    "inputPlaceholder": "?????????",
+    "stopAction": "??",
+    "sendAction": "??",
+    "analyzing": "???..."
   }
 }

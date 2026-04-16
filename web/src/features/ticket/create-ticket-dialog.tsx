@@ -224,6 +224,33 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
                     </div>
                   ) : null}
 
+                  {analyzeSuggestion.estimatedComplexity ? (
+                    <div>
+                      <div className="text-muted-foreground">
+                        {t('agent.estimatedComplexity', { defaultValue: 'Estimated Complexity' })}
+                      </div>
+                      <div>{analyzeSuggestion.estimatedComplexity}</div>
+                    </div>
+                  ) : null}
+
+                  {analyzeSuggestion.estimatedEffort ? (
+                    <div>
+                      <div className="text-muted-foreground">
+                        {t('agent.estimatedEffort', { defaultValue: 'Estimated Effort' })}
+                      </div>
+                      <div>{analyzeSuggestion.estimatedEffort}</div>
+                    </div>
+                  ) : null}
+
+                  {analyzeSuggestion.suggestedRewardRange ? (
+                    <div>
+                      <div className="text-muted-foreground">
+                        {t('agent.suggestedRewardRange', { defaultValue: 'Suggested Reward Range' })}
+                      </div>
+                      <div>{analyzeSuggestion.suggestedRewardRange}</div>
+                    </div>
+                  ) : null}
+
                   {analyzeSuggestion.namespace ? (
                     <div>
                       <div className="text-muted-foreground">{t('tickets.fieldNamespace')}</div>
@@ -245,6 +272,28 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
                   </div>
                 ) : null}
 
+                {analyzeSuggestion.completenessIssues?.length ? (
+                  <div className="space-y-1 text-sm">
+                    <div className="text-muted-foreground">
+                      {t('agent.completenessIssues', { defaultValue: 'Completeness Issues' })}
+                    </div>
+                    <ul className="list-disc pl-5">
+                      {analyzeSuggestion.completenessIssues.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {analyzeSuggestion.rationalityAssessment ? (
+                  <div className="space-y-1 text-sm">
+                    <div className="text-muted-foreground">
+                      {t('agent.rationalityAssessment', { defaultValue: 'Rationality Assessment' })}
+                    </div>
+                    <div>{analyzeSuggestion.rationalityAssessment}</div>
+                  </div>
+                ) : null}
+
                 {analyzeSuggestion.riskPoints?.length ? (
                   <div className="space-y-1 text-sm">
                     <div className="text-muted-foreground">
@@ -252,6 +301,32 @@ export function CreateTicketDialog({ children }: CreateTicketDialogProps) {
                     </div>
                     <ul className="list-disc pl-5">
                       {analyzeSuggestion.riskPoints.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {analyzeSuggestion.similarSkills?.length ? (
+                  <div className="space-y-1 text-sm">
+                    <div className="text-muted-foreground">
+                      {t('agent.similarSkills', { defaultValue: 'Similar Skills' })}
+                    </div>
+                    <ul className="list-disc pl-5">
+                      {analyzeSuggestion.similarSkills.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {analyzeSuggestion.developmentOutline?.length ? (
+                  <div className="space-y-1 text-sm">
+                    <div className="text-muted-foreground">
+                      {t('agent.developmentOutline', { defaultValue: 'Development Outline' })}
+                    </div>
+                    <ul className="list-disc pl-5">
+                      {analyzeSuggestion.developmentOutline.map((item) => (
                         <li key={item}>{item}</li>
                       ))}
                     </ul>
