@@ -1,13 +1,17 @@
 package com.iflytek.skillhub.controller.portal;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
 import com.iflytek.skillhub.config.OpenClawAgentProperties;
 import com.iflytek.skillhub.dto.AgentChatRequest;
 import com.iflytek.skillhub.dto.TicketAnalyzeSuggestionResponse;
 import com.iflytek.skillhub.service.OpenClawAgentAppService;
-import jakarta.validation.Valid;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,16 +31,27 @@ public class AgentController {
 
     private final OpenClawAgentAppService openClawAgentAppService;
     private final OpenClawAgentProperties properties;
+    private final ObjectMapper objectMapper;
+    private final Validator validator;
 
     public AgentController(OpenClawAgentAppService openClawAgentAppService,
-                           OpenClawAgentProperties properties) {
+                           OpenClawAgentProperties properties,
+                           ObjectMapper objectMapper,
+                           Validator validator) {
         this.openClawAgentAppService = openClawAgentAppService;
         this.properties = properties;
+        this.objectMapper = objectMapper;
+        this.validator = validator;
     }
 
-    @PostMapping(path = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chat(@Valid @RequestBody AgentChatRequest request,
+    @PostMapping(
+            path = "/chat",
+            consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.TEXT_PLAIN_VALUE},
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE
+    )
+    public SseEmitter chat(@RequestBody String requestBody,
                            @AuthenticationPrincipal PlatformPrincipal principal) {
+        AgentChatRequest request = parseRequest(requestBody);
         String sessionId = openClawAgentAppService.resolveSessionId(request.sessionId());
         String actorUserId = principal != null ? principal.userId() : "anonymous";
         SseEmitter emitter = new SseEmitter(properties.getSseTimeoutMs());
@@ -96,5 +111,31 @@ public class AgentController {
 
     private void send(SseEmitter emitter, String eventName, Object payload) throws IOException {
         emitter.send(SseEmitter.event().name(eventName).data(payload));
+    }
+
+    private AgentChatRequest parseRequest(String requestBody) {
+        try {
+            AgentChatRequest request = objectMapper.readValue(requestBody, AgentChatRequest.class);
+            validate(request);
+            return request;
+        } catch (IllegalArgumentException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("Invalid agent request payload");
+        }
+    }
+
+    private void validate(AgentChatRequest request) {
+        Set<ConstraintViolation<AgentChatRequest>> violations = validator.validate(request);
+        if (violations.isEmpty()) {
+            return;
+        }
+
+        String message = violations.stream()
+                .map(ConstraintViolation::getMessage)
+                .filter(value -> value != null && !value.isBlank())
+                .min(Comparator.naturalOrder())
+                .orElse("Invalid agent request payload");
+        throw new IllegalArgumentException(message);
     }
 }
