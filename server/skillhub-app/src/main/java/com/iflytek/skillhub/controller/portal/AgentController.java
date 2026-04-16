@@ -38,6 +38,7 @@ public class AgentController {
     public SseEmitter chat(@Valid @RequestBody AgentChatRequest request,
                            @AuthenticationPrincipal PlatformPrincipal principal) {
         String sessionId = openClawAgentAppService.resolveSessionId(request.sessionId());
+        String actorUserId = principal != null ? principal.userId() : "anonymous";
         SseEmitter emitter = new SseEmitter(properties.getSseTimeoutMs());
 
         CompletableFuture.runAsync(() -> {
@@ -50,7 +51,7 @@ public class AgentController {
                             "detail", "Calling OpenClaw analysis"
                     ));
 
-                    TicketAnalyzeSuggestionResponse suggestion = openClawAgentAppService.analyzeTicket(request, principal.userId());
+                    TicketAnalyzeSuggestionResponse suggestion = openClawAgentAppService.analyzeTicket(request, actorUserId);
 
                     send(emitter, "assistant_delta", Map.of(
                             "message_id", "assistant_1",
@@ -69,7 +70,7 @@ public class AgentController {
                             "payload", suggestion
                     ));
                 } else {
-                    String answer = openClawAgentAppService.chat(request, principal.userId());
+                    String answer = openClawAgentAppService.chat(request, actorUserId);
                     send(emitter, "assistant_delta", Map.of(
                             "message_id", "assistant_1",
                             "delta", answer

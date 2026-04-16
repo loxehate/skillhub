@@ -1586,12 +1586,12 @@
     "openInNewTab": "新标签页打开",
     "embedNotConfiguredTitle": "未配置智能体嵌入",
     "embedNotConfiguredDescription": "请配置 SKILLHUB_AGENT_EMBED_URL 或 SKILLHUB_WEB_OPENCLAW_EMBED_URL，以便在此嵌入 OpenClaw 或 Open WebUI 页面。",
-    "assistantTitle": "AI ??",
-    "assistantDescription": "???? SkillHub ?????????????????",
-    "assistantTrigger": "AI ??",
-    "inputPlaceholder": "?????????",
-    "stopAction": "??",
-    "sendAction": "??",
-    "analyzing": "???..."
+    "assistantTitle": "AI 助手",
+    "assistantDescription": "随时询问 SkillHub 的发布、审核、工单和平台使用问题。",
+    "assistantTrigger": "AI 助手",
+    "inputPlaceholder": "输入你想咨询的问题",
+    "stopAction": "停止",
+    "sendAction": "发送",
+    "analyzing": "思考中..."
   }
 }
