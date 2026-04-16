@@ -6,17 +6,14 @@ import com.iflytek.skillhub.config.OpenClawAgentProperties;
 import com.iflytek.skillhub.dto.AgentChatRequest;
 import com.iflytek.skillhub.dto.TicketAnalyzeSuggestionResponse;
 import com.iflytek.skillhub.service.OpenClawAgentAppService;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validator;
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,16 +29,13 @@ public class AgentController {
     private final OpenClawAgentAppService openClawAgentAppService;
     private final OpenClawAgentProperties properties;
     private final ObjectMapper objectMapper;
-    private final Validator validator;
 
     public AgentController(OpenClawAgentAppService openClawAgentAppService,
                            OpenClawAgentProperties properties,
-                           ObjectMapper objectMapper,
-                           Validator validator) {
+                           ObjectMapper objectMapper) {
         this.openClawAgentAppService = openClawAgentAppService;
         this.properties = properties;
         this.objectMapper = objectMapper;
-        this.validator = validator;
     }
 
     @PostMapping(
@@ -126,16 +120,21 @@ public class AgentController {
     }
 
     private void validate(AgentChatRequest request) {
-        Set<ConstraintViolation<AgentChatRequest>> violations = validator.validate(request);
-        if (violations.isEmpty()) {
-            return;
+        if (request == null) {
+            throw new IllegalArgumentException("Invalid agent request payload");
         }
 
-        String message = violations.stream()
-                .map(ConstraintViolation::getMessage)
-                .filter(value -> value != null && !value.isBlank())
-                .min(Comparator.naturalOrder())
-                .orElse("Invalid agent request payload");
-        throw new IllegalArgumentException(message);
+        if (!StringUtils.hasText(request.message())) {
+            throw new IllegalArgumentException("Agent message is required");
+        }
+        if (request.message().trim().length() > 4000) {
+            throw new IllegalArgumentException("Agent message is too long");
+        }
+        if (!StringUtils.hasText(request.mode())) {
+            throw new IllegalArgumentException("Agent mode is required");
+        }
+        if (request.context() == null || !StringUtils.hasText(request.context().source())) {
+            throw new IllegalArgumentException("Agent source is required");
+        }
     }
 }
