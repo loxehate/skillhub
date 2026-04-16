@@ -1558,5 +1558,17 @@
       "ticket": "工单通知",
       "ticketDesc": "工单分配、审核、提交和完成时通知"
     }
+  },
+  "agent": {
+    "analyzeAction": "分析",
+    "descriptionRequired": "请先填写详细说明。",
+    "ticketAnalyzePrompt": "请分析这条工单需求，并输出建议标题、模式、金额、验收标准和风险点。",
+    "latestSuggestionTitle": "最新分析建议",
+    "applySuggestion": "应用建议",
+    "applySuggestionSuccess": "分析建议已应用到表单。",
+    "dismissSuggestion": "忽略",
+    "acceptanceCriteria": "验收标准",
+    "riskPoints": "风险点",
+    "clarificationQuestions": "待确认问题"
   }
 }

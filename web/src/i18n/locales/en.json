@@ -1558,5 +1558,17 @@
       "ticket": "Ticket Notifications",
       "ticketDesc": "Notify on ticket assignment, review, submission, and completion"
     }
+  },
+  "agent": {
+    "analyzeAction": "Analyze",
+    "descriptionRequired": "Please enter the description first.",
+    "ticketAnalyzePrompt": "Please analyze this ticket request and suggest title, mode, amount, acceptance criteria, and risks.",
+    "latestSuggestionTitle": "Latest Analysis Suggestion",
+    "applySuggestion": "Apply Suggestion",
+    "applySuggestionSuccess": "The analysis suggestion has been applied to the form.",
+    "dismissSuggestion": "Dismiss",
+    "acceptanceCriteria": "Acceptance Criteria",
+    "riskPoints": "Risk Points",
+    "clarificationQuestions": "Clarification Questions"
   }
 }
