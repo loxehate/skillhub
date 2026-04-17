@@ -111,7 +111,10 @@ export function useAgentChat(options?: UseAgentChatOptions) {
           return
         }
 
-        const payload = JSON.parse(dataText) as Record<string, unknown>
+        const parsed = JSON.parse(dataText) as unknown
+        const payload = typeof parsed === 'string'
+          ? JSON.parse(parsed) as Record<string, unknown>
+          : parsed as Record<string, unknown>
 
         switch (eventName) {
           case 'session_started':

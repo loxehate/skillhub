@@ -81,6 +81,7 @@ public class AgentController {
                 } else {
                     openClawAgentAppService.streamChat(request, actorUserId, delta -> {
                         try {
+                            log.info("AgentController assistant_delta: {}", abbreviateForLog(delta));
                             send(emitter, "assistant_delta", Map.of(
                                     "message_id", "assistant_1",
                                     "delta", delta
@@ -111,7 +112,7 @@ public class AgentController {
     private void send(SseEmitter emitter, String eventName, Object payload) throws IOException {
         emitter.send(SseEmitter.event()
                 .name(eventName)
-                .data(objectMapper.writeValueAsString(payload), MediaType.APPLICATION_JSON));
+                .data(payload, MediaType.APPLICATION_JSON));
     }
 
     private AgentChatRequest parseRequest(String requestBody) {
@@ -143,5 +144,13 @@ public class AgentController {
         if (request.context() == null || !StringUtils.hasText(request.context().source())) {
             throw new IllegalArgumentException("Agent source is required");
         }
+    }
+
+    private String abbreviateForLog(String value) {
+        String text = value == null ? "" : value.trim().replaceAll("\\s+", " ");
+        if (text.length() <= 200) {
+            return text;
+        }
+        return text.substring(0, 200) + "...[truncated]";
     }
 }

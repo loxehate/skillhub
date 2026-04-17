@@ -159,6 +159,7 @@ public class OpenClawAgentAppService {
                     String delta = extractStreamDelta(data);
                     if (StringUtils.hasText(delta)) {
                         emitted = true;
+                        log.info("OpenClaw stream delta: {}", abbreviateForLog(delta));
                         onDelta.accept(delta);
                     }
                 }
@@ -167,6 +168,7 @@ public class OpenClawAgentAppService {
             if (!emitted) {
                 String fallback = chat(request, actorUserId);
                 if (StringUtils.hasText(fallback)) {
+                    log.info("OpenClaw fallback response: {}", abbreviateForLog(fallback));
                     emitChunkedFallback(fallback, onDelta);
                 }
             }
@@ -176,6 +178,7 @@ public class OpenClawAgentAppService {
             log.warn("Streaming OpenClaw chat failed, falling back to non-stream response: {}", ex.getMessage());
             String fallback = chat(request, actorUserId);
             if (StringUtils.hasText(fallback)) {
+                log.info("OpenClaw fallback response after stream failure: {}", abbreviateForLog(fallback));
                 emitChunkedFallback(fallback, onDelta);
             }
         }
@@ -381,6 +384,14 @@ public class OpenClawAgentAppService {
             int end = Math.min(text.length(), index + step);
             onDelta.accept(text.substring(index, end));
         }
+    }
+
+    private String abbreviateForLog(String value) {
+        String text = trimToEmpty(value).replaceAll("\\s+", " ");
+        if (text.length() <= 200) {
+            return text;
+        }
+        return text.substring(0, 200) + "...[truncated]";
     }
 
     private TicketAnalyzeSuggestionResponse parseSuggestion(String rawContent,
