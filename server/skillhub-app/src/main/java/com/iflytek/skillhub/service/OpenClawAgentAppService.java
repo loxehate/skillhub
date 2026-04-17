@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpClient.Version;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ public class OpenClawAgentAppService {
         this.objectMapper = objectMapper;
         this.webClient = WebClient.builder().build();
         this.httpClient = HttpClient.newBuilder()
+                .version(Version.HTTP_1_1)
                 .connectTimeout(Duration.ofMillis(properties.getRequestTimeoutMs()))
                 .build();
     }
@@ -129,7 +131,7 @@ public class OpenClawAgentAppService {
                     .uri(URI.create(buildChatCompletionUrl()))
                     .timeout(Duration.ofMillis(properties.getRequestTimeoutMs()))
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
+                    .header(HttpHeaders.ACCEPT, "*/*")
                     .POST(HttpRequest.BodyPublishers.ofString(requestJson, StandardCharsets.UTF_8));
             applyAuth(builder);
 
