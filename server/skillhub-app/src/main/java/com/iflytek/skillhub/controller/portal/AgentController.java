@@ -109,7 +109,9 @@ public class AgentController {
     }
 
     private void send(SseEmitter emitter, String eventName, Object payload) throws IOException {
-        emitter.send(SseEmitter.event().name(eventName).data(payload));
+        emitter.send(SseEmitter.event()
+                .name(eventName)
+                .data(objectMapper.writeValueAsString(payload), MediaType.APPLICATION_JSON));
     }
 
     private AgentChatRequest parseRequest(String requestBody) {

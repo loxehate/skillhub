@@ -165,7 +165,7 @@ public class OpenClawAgentAppService {
             if (!emitted) {
                 String fallback = chat(request, actorUserId);
                 if (StringUtils.hasText(fallback)) {
-                    onDelta.accept(fallback);
+                    emitChunkedFallback(fallback, onDelta);
                 }
             }
         } catch (DomainBadRequestException ex) {
@@ -174,7 +174,7 @@ public class OpenClawAgentAppService {
             log.warn("Streaming OpenClaw chat failed, falling back to non-stream response: {}", ex.getMessage());
             String fallback = chat(request, actorUserId);
             if (StringUtils.hasText(fallback)) {
-                onDelta.accept(fallback);
+                emitChunkedFallback(fallback, onDelta);
             }
         }
     }
@@ -365,6 +365,19 @@ public class OpenClawAgentAppService {
         } catch (Exception ex) {
             log.debug("Failed to parse streamed OpenClaw delta: {}", ex.getMessage());
             return "";
+        }
+    }
+
+    private void emitChunkedFallback(String content, Consumer<String> onDelta) {
+        String text = trimToEmpty(content);
+        if (!StringUtils.hasText(text)) {
+            return;
+        }
+
+        int step = 24;
+        for (int index = 0; index < text.length(); index += step) {
+            int end = Math.min(text.length(), index + step);
+            onDelta.accept(text.substring(index, end));
         }
     }
 
