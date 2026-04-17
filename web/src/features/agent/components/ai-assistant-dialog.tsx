@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useAuth } from '@/features/auth/use-auth'
 import type { AgentChatContext } from '../types'
 import { AgentConversationPanel } from './agent-conversation-panel'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
@@ -15,6 +16,7 @@ export function AiAssistantDialog({
   context,
 }: AiAssistantDialogProps) {
   const { t } = useTranslation()
+  const { user } = useAuth()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -33,7 +35,7 @@ export function AiAssistantDialog({
         <AgentConversationPanel
           mode="general_chat"
           context={context ?? { source: 'general' }}
-          storageNamespace="general"
+          storageNamespace={`general.${user?.userId ?? 'anonymous'}`}
         />
       </DialogContent>
     </Dialog>

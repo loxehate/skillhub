@@ -55,6 +55,16 @@ export function useAgentChat(options?: UseAgentChatOptions) {
     }
   })
   const abortRef = useRef<AbortController | null>(null)
+  const messagesRef = useRef<AgentMessage[]>(messages)
+  const sessionIdRef = useRef<string | undefined>(sessionId)
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId
+  }, [sessionId])
 
   useEffect(() => {
     options?.onStateChange?.({ messages, sessionId })
@@ -73,10 +83,11 @@ export function useAgentChat(options?: UseAgentChatOptions) {
   const appendMessage = useCallback((message: AgentMessage) => {
     setMessages((prev) => {
       const next = [...prev, message]
-      persistState(next, sessionId)
+      messagesRef.current = next
+      persistState(next, sessionIdRef.current)
       return next
     })
-  }, [persistState, sessionId])
+  }, [persistState])
 
   const updateAssistantDelta = useCallback((messageId: string, delta: string) => {
     setMessages((prev) => {
@@ -85,10 +96,11 @@ export function useAgentChat(options?: UseAgentChatOptions) {
           ? { ...item, content: item.content + delta, streaming: true }
           : item,
       )
-      persistState(next, sessionId)
+      messagesRef.current = next
+      persistState(next, sessionIdRef.current)
       return next
     })
-  }, [persistState, sessionId])
+  }, [persistState])
 
   const finishAssistant = useCallback((messageId: string) => {
     setMessages((prev) => {
@@ -97,10 +109,11 @@ export function useAgentChat(options?: UseAgentChatOptions) {
           ? { ...item, streaming: false }
           : item,
       )
-      persistState(next, sessionId)
+      messagesRef.current = next
+      persistState(next, sessionIdRef.current)
       return next
     })
-  }, [persistState, sessionId])
+  }, [persistState])
 
   const send = useCallback(async (params: {
     message: string
@@ -171,8 +184,9 @@ export function useAgentChat(options?: UseAgentChatOptions) {
         switch (eventName) {
           case 'session_started':
             if (typeof payload.session_id === 'string' && payload.session_id) {
+              sessionIdRef.current = payload.session_id
               setSessionId(payload.session_id)
-              persistState(messages, payload.session_id)
+              persistState(messagesRef.current, payload.session_id)
             }
             break
 
@@ -294,6 +308,8 @@ export function useAgentChat(options?: UseAgentChatOptions) {
   const reset = useCallback(() => {
     setMessages([])
     setSessionId(undefined)
+    messagesRef.current = []
+    sessionIdRef.current = undefined
     setIsStreaming(false)
     persistState([], undefined)
   }, [persistState])
