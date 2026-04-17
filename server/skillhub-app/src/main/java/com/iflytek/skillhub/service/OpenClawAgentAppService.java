@@ -72,6 +72,8 @@ public class OpenClawAgentAppService {
                 .bodyValue(new OpenAiChatCompletionRequest(
                         properties.getModel(),
                         false,
+                        resolveSessionId(request.sessionId()),
+                        resolveChatId(request),
                         List.of(
                                 new OpenAiMessage("system", buildSystemPrompt()),
                                 new OpenAiMessage("user", buildUserPrompt(request, actorUserId))
