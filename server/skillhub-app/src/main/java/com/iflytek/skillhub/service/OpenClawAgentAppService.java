@@ -86,6 +86,10 @@ public class OpenClawAgentAppService {
     }
 
     public String chat(AgentChatRequest request, String actorUserId) {
+        return chat(List.of(new ConversationTurn("user", trimToEmpty(request.message()))), request, actorUserId);
+    }
+
+    public String chat(List<ConversationTurn> history, AgentChatRequest request, String actorUserId) {
         ensureEnabled();
         String mode = trimToEmpty(request.mode());
         if (!"general_chat".equalsIgnoreCase(mode) && !"ticket_assistant".equalsIgnoreCase(mode)) {
@@ -99,10 +103,7 @@ public class OpenClawAgentAppService {
                 .bodyValue(new OpenAiChatCompletionRequest(
                         properties.getModel(),
                         false,
-                        List.of(
-                                new OpenAiMessage("system", buildGeneralSystemPrompt(mode)),
-                                new OpenAiMessage("user", buildGeneralUserPrompt(request, actorUserId))
-                        )
+                        buildConversationMessages(history, request, actorUserId)
                 ))
                 .retrieve()
                 .bodyToMono(OpenAiChatCompletionResponse.class)
@@ -111,6 +112,13 @@ public class OpenClawAgentAppService {
     }
 
     public void streamChat(AgentChatRequest request, String actorUserId, Consumer<String> onDelta) {
+        streamChat(List.of(new ConversationTurn("user", trimToEmpty(request.message()))), request, actorUserId, onDelta);
+    }
+
+    public void streamChat(List<ConversationTurn> history,
+                           AgentChatRequest request,
+                           String actorUserId,
+                           Consumer<String> onDelta) {
         ensureEnabled();
         String mode = trimToEmpty(request.mode());
         if (!"general_chat".equalsIgnoreCase(mode) && !"ticket_assistant".equalsIgnoreCase(mode)) {
@@ -121,10 +129,7 @@ public class OpenClawAgentAppService {
             String requestJson = objectMapper.writeValueAsString(new OpenAiChatCompletionRequest(
                     properties.getModel(),
                     true,
-                    List.of(
-                            new OpenAiMessage("system", buildGeneralSystemPrompt(mode)),
-                            new OpenAiMessage("user", buildGeneralUserPrompt(request, actorUserId))
-                    )
+                    buildConversationMessages(history, request, actorUserId)
             ));
 
             HttpRequest.Builder builder = HttpRequest.newBuilder()
@@ -166,7 +171,7 @@ public class OpenClawAgentAppService {
             }
 
             if (!emitted) {
-                String fallback = chat(request, actorUserId);
+                String fallback = chat(history, request, actorUserId);
                 if (StringUtils.hasText(fallback)) {
                     log.info("OpenClaw fallback response: {}", abbreviateForLog(fallback));
                     emitChunkedFallback(fallback, onDelta);
@@ -176,7 +181,7 @@ public class OpenClawAgentAppService {
             throw ex;
         } catch (Exception ex) {
             log.warn("Streaming OpenClaw chat failed, falling back to non-stream response: {}", ex.getMessage());
-            String fallback = chat(request, actorUserId);
+            String fallback = chat(history, request, actorUserId);
             if (StringUtils.hasText(fallback)) {
                 log.info("OpenClaw fallback response after stream failure: {}", abbreviateForLog(fallback));
                 emitChunkedFallback(fallback, onDelta);
@@ -248,7 +253,26 @@ public class OpenClawAgentAppService {
                 """;
     }
 
-    private String buildGeneralSystemPrompt(String mode) {
+    private List<OpenAiMessage> buildConversationMessages(List<ConversationTurn> history,
+                                                          AgentChatRequest request,
+                                                          String actorUserId) {
+        List<OpenAiMessage> messages = new ArrayList<>();
+        messages.add(new OpenAiMessage("system", buildGeneralSystemPrompt(trimToEmpty(request.mode()), request, actorUserId)));
+        for (ConversationTurn turn : history) {
+            if (turn == null || !StringUtils.hasText(turn.role()) || !StringUtils.hasText(turn.content())) {
+                continue;
+            }
+            String role = turn.role().trim().toLowerCase();
+            if (!Objects.equals(role, "user") && !Objects.equals(role, "assistant")) {
+                continue;
+            }
+            messages.add(new OpenAiMessage(role, turn.content().trim()));
+        }
+        return messages;
+    }
+
+    private String buildGeneralSystemPrompt(String mode, AgentChatRequest request, String actorUserId) {
+        String contextSummary = buildContextSummary(request, actorUserId);
         if ("ticket_assistant".equalsIgnoreCase(mode)) {
             return """
                     You are SkillHub's ticket assistant.
@@ -256,7 +280,10 @@ public class OpenClawAgentAppService {
                     Help users understand ticket workflow, development steps, review expectations,
                     publishing flow, and next actions. Give concise and practical answers.
                     If the context is incomplete, clearly say what extra information is needed.
-                    """;
+                    
+                    Current context:
+                    %s
+                    """.formatted(contextSummary);
         }
 
         return """
@@ -266,7 +293,10 @@ public class OpenClawAgentAppService {
                 reviews, tickets, governance, and platform workflows.
                 Keep answers concise, practical, and aligned with the current platform behavior.
                 If the question depends on missing context, clearly say what is missing.
-                """;
+                
+                Current context:
+                %s
+                """.formatted(contextSummary);
     }
 
     private String buildUserPrompt(AgentChatRequest request, String actorUserId) {
@@ -304,7 +334,7 @@ public class OpenClawAgentAppService {
         );
     }
 
-    private String buildGeneralUserPrompt(AgentChatRequest request, String actorUserId) {
+    private String buildContextSummary(AgentChatRequest request, String actorUserId) {
         AgentChatRequest.TicketDraftRequest draft = request.context() != null ? request.context().ticketDraft() : null;
         String title = draft != null ? trimToEmpty(draft.title()) : "";
         String description = draft != null ? trimToEmpty(draft.description()) : "";
@@ -312,8 +342,6 @@ public class OpenClawAgentAppService {
         String ticketMode = draft != null ? trimToEmpty(draft.mode()) : "";
 
         return """
-                User question: %s
-
                 Current user: %s
                 Context source: %s
                 Ticket title: %s
@@ -321,7 +349,6 @@ public class OpenClawAgentAppService {
                 Ticket namespace: %s
                 Ticket mode: %s
                 """.formatted(
-                trimToEmpty(request.message()),
                 actorUserId,
                 request.context() != null ? trimToEmpty(request.context().source()) : "",
                 title,
@@ -506,6 +533,11 @@ public class OpenClawAgentAppService {
     ) {}
 
     private record OpenAiMessage(
+            String role,
+            String content
+    ) {}
+
+    public record ConversationTurn(
             String role,
             String content
     ) {}

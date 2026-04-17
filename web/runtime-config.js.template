@@ -1,6 +1,8 @@
 window.__SKILLHUB_RUNTIME_CONFIG__ = {
   apiBaseUrl: "${SKILLHUB_WEB_API_BASE_URL}",
   appBaseUrl: "${SKILLHUB_PUBLIC_BASE_URL}",
+  openWebUiUrl: "${SKILLHUB_WEB_OPENWEBUI_URL}",
+  openWebUiTitle: "${SKILLHUB_WEB_OPENWEBUI_TITLE}",
   authDirectEnabled: "${SKILLHUB_WEB_AUTH_DIRECT_ENABLED}",
   authDirectProvider: "${SKILLHUB_WEB_AUTH_DIRECT_PROVIDER}",
   authSessionBootstrapEnabled: "${SKILLHUB_WEB_AUTH_SESSION_BOOTSTRAP_ENABLED}",

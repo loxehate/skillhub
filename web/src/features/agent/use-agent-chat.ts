@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, buildApiUrl, getCsrfHeaders } from '@/api/client'
 import type {
   AgentChatContext,
@@ -19,6 +19,7 @@ function uid(prefix: string) {
 type UseAgentChatOptions = {
   onSuggestion?: (suggestion: TicketAnalyzeSuggestion) => void
   storageKey?: string
+  onStateChange?: (state: { messages: AgentMessage[], sessionId?: string }) => void
 }
 
 export function useAgentChat(options?: UseAgentChatOptions) {
@@ -54,6 +55,10 @@ export function useAgentChat(options?: UseAgentChatOptions) {
     }
   })
   const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    options?.onStateChange?.({ messages, sessionId })
+  }, [messages, options, sessionId])
 
   const persistState = useCallback((nextMessages: AgentMessage[], nextSessionId?: string) => {
     if (!options?.storageKey || typeof window === 'undefined') {

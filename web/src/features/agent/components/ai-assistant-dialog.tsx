@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { AgentChatContext } from '../types'
-import { AgentChatPanel } from './agent-chat-panel'
+import { AgentConversationPanel } from './agent-conversation-panel'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 
 interface AiAssistantDialogProps {
@@ -30,11 +30,10 @@ export function AiAssistantDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <AgentChatPanel
+        <AgentConversationPanel
           mode="general_chat"
           context={context ?? { source: 'general' }}
-          initialPrompt=""
-          storageKey="skillhub.agent.general"
+          storageNamespace="general"
         />
       </DialogContent>
     </Dialog>

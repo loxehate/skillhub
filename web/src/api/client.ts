@@ -63,6 +63,8 @@ export const WEB_API_PREFIX = '/api/web'
 type RuntimeConfig = {
   apiBaseUrl?: string
   appBaseUrl?: string
+  openWebUiUrl?: string
+  openWebUiTitle?: string
   authDirectEnabled?: string
   authDirectProvider?: string
   authSessionBootstrapEnabled?: string
@@ -149,12 +151,30 @@ export type DirectAuthRuntimeConfig = {
   provider?: string
 }
 
+export type OpenWebUiRuntimeConfig = {
+  enabled: boolean
+  url?: string
+  title?: string
+}
+
 export function getDirectAuthRuntimeConfig(): DirectAuthRuntimeConfig {
   const config = getRuntimeConfig()
   const provider = config.authDirectProvider?.trim()
   return {
     enabled: parseBooleanFlag(config.authDirectEnabled) && !!provider,
     provider: provider || undefined,
+  }
+}
+
+export function getOpenWebUiRuntimeConfig(): OpenWebUiRuntimeConfig {
+  const config = getRuntimeConfig()
+  const url = config.openWebUiUrl?.trim()
+  const title = config.openWebUiTitle?.trim()
+
+  return {
+    enabled: !!url,
+    url: url || undefined,
+    title: title || undefined,
   }
 }
 

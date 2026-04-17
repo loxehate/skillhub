@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Textarea } from '@/shared/ui/textarea'
-import type { AgentChatContext, AgentMode, TicketAnalyzeSuggestion } from '../types'
+import type { AgentChatContext, AgentMessage, AgentMode, TicketAnalyzeSuggestion } from '../types'
 import { useAgentChat } from '../use-agent-chat'
 import { AgentSuggestionCard } from './agent-suggestion-card'
 
@@ -14,6 +14,7 @@ interface AgentChatPanelProps {
   autoRun?: boolean
   storageKey?: string
   onApplySuggestion?: (suggestion: TicketAnalyzeSuggestion) => void
+  onConversationStateChange?: (state: { messages: AgentMessage[], sessionId?: string }) => void
 }
 
 export function AgentChatPanel({
@@ -23,6 +24,7 @@ export function AgentChatPanel({
   autoRun = false,
   storageKey,
   onApplySuggestion,
+  onConversationStateChange,
 }: AgentChatPanelProps) {
   const { t } = useTranslation()
   const [input, setInput] = useState(initialPrompt ?? '')
@@ -31,6 +33,7 @@ export function AgentChatPanel({
   const { messages, isStreaming, send, interrupt } = useAgentChat({
     onSuggestion: onApplySuggestion,
     storageKey,
+    onStateChange: onConversationStateChange,
   })
 
   useEffect(() => {
