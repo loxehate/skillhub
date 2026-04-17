@@ -6,6 +6,7 @@ import com.iflytek.skillhub.config.OpenClawAgentProperties;
 import com.iflytek.skillhub.dto.AgentChatRequest;
 import com.iflytek.skillhub.dto.TicketAnalyzeSuggestionResponse;
 import com.iflytek.skillhub.service.OpenClawAgentAppService;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -44,10 +45,14 @@ public class AgentController {
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
     public SseEmitter chat(@RequestBody String requestBody,
+                           HttpServletResponse response,
                            @AuthenticationPrincipal PlatformPrincipal principal) {
         AgentChatRequest request = parseRequest(requestBody);
         String sessionId = openClawAgentAppService.resolveSessionId(request.sessionId());
         String actorUserId = principal != null ? principal.userId() : "anonymous";
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
         SseEmitter emitter = new SseEmitter(properties.getSseTimeoutMs());
 
         CompletableFuture.runAsync(() -> {
