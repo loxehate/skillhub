@@ -88,7 +88,7 @@ public class OpenClawAgentAppService {
     }
 
     public String chat(AgentChatRequest request, String actorUserId, String resolvedSessionId) {
-        return chat(List.of(new ConversationTurn("user", trimToEmpty(request.message()))), request, actorUserId, resolvedSessionId);
+        return chat(resolveConversationHistory(request), request, actorUserId, resolvedSessionId);
     }
 
     public String chat(List<ConversationTurn> history,
@@ -122,7 +122,7 @@ public class OpenClawAgentAppService {
                            String actorUserId,
                            String resolvedSessionId,
                            Consumer<String> onDelta) {
-        streamChat(List.of(new ConversationTurn("user", trimToEmpty(request.message()))), request, actorUserId, resolvedSessionId, onDelta);
+        streamChat(resolveConversationHistory(request), request, actorUserId, resolvedSessionId, onDelta);
     }
 
     public void streamChat(List<ConversationTurn> history,
@@ -239,6 +239,22 @@ public class OpenClawAgentAppService {
             return "chat-" + request.sessionId().trim();
         }
         return "chat-" + UUID.randomUUID();
+    }
+
+    private List<ConversationTurn> resolveConversationHistory(AgentChatRequest request) {
+        if (request != null && request.messages() != null && !request.messages().isEmpty()) {
+            ArrayList<ConversationTurn> turns = new ArrayList<>();
+            for (AgentChatRequest.ConversationTurnRequest turn : request.messages()) {
+                if (turn == null || !StringUtils.hasText(turn.role()) || !StringUtils.hasText(turn.content())) {
+                    continue;
+                }
+                turns.add(new ConversationTurn(turn.role().trim(), turn.content().trim()));
+            }
+            if (!turns.isEmpty()) {
+                return List.copyOf(turns);
+            }
+        }
+        return List.of(new ConversationTurn("user", trimToEmpty(request != null ? request.message() : "")));
     }
 
     private String buildSystemPrompt() {

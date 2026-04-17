@@ -21,7 +21,10 @@ public record AgentChatRequest(
         String mode,
 
         @Valid
-        AgentChatContextRequest context
+        AgentChatContextRequest context,
+
+        @Valid
+        List<ConversationTurnRequest> messages
 ) {
 
     public record AgentChatContextRequest(
@@ -44,5 +47,10 @@ public record AgentChatRequest(
 
     public record AgentUserContextRequest(
             String userId
+    ) {}
+
+    public record ConversationTurnRequest(
+            String role,
+            String content
     ) {}
 }

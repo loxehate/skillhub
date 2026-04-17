@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, buildApiUrl, getCsrfHeaders } from '@/api/client'
 import type {
   AgentChatContext,
+  AgentConversationTurn,
   AgentChatRequest,
   AgentMessage,
   AgentMode,
@@ -14,6 +15,18 @@ function nowIso() {
 
 function uid(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+function toConversationTurns(messages: AgentMessage[]): AgentConversationTurn[] {
+  return messages.flatMap((message) => {
+    if (message.role === 'user' || message.role === 'assistant') {
+      return [{
+        role: message.role,
+        content: message.content,
+      }]
+    }
+    return []
+  })
 }
 
 type UseAgentChatOptions = {
@@ -132,6 +145,8 @@ export function useAgentChat(options?: UseAgentChatOptions) {
       createdAt: nowIso(),
     })
 
+    const conversationMessages = toConversationTurns(messagesRef.current)
+
     try {
       const response = await fetch(buildApiUrl('/api/web/agent/chat'), {
         method: 'POST',
@@ -146,6 +161,7 @@ export function useAgentChat(options?: UseAgentChatOptions) {
           message: params.message,
           mode: params.mode,
           context: params.context,
+          messages: conversationMessages,
         } satisfies AgentChatRequest),
         signal: controller.signal,
       })
