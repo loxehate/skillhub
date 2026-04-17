@@ -8,18 +8,21 @@ import com.iflytek.skillhub.dto.TicketAnalyzeSuggestionResponse;
 import com.iflytek.skillhub.service.OpenClawAgentAppService;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
 @RequestMapping("/api/web/agent")
@@ -44,22 +47,21 @@ public class AgentController {
             consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.TEXT_PLAIN_VALUE},
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
-    public SseEmitter chat(@RequestBody String requestBody,
-                           HttpServletResponse response,
-                           @AuthenticationPrincipal PlatformPrincipal principal) {
+    public ResponseEntity<StreamingResponseBody> chat(@RequestBody String requestBody,
+                                                      HttpServletResponse response,
+                                                      @AuthenticationPrincipal PlatformPrincipal principal) {
         AgentChatRequest request = parseRequest(requestBody);
         String sessionId = openClawAgentAppService.resolveSessionId(request.sessionId());
         String actorUserId = principal != null ? principal.userId() : "anonymous";
         response.setHeader("X-Accel-Buffering", "no");
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("Connection", "keep-alive");
-        SseEmitter emitter = new SseEmitter(properties.getSseTimeoutMs());
 
-        CompletableFuture.runAsync(() -> {
+        StreamingResponseBody body = outputStream -> {
             try {
-                send(emitter, "session_started", Map.of("session_id", sessionId));
+                send(outputStream, "session_started", Map.of("session_id", sessionId));
                 if ("ticket_analyze".equalsIgnoreCase(request.mode())) {
-                    send(emitter, "tool_started", Map.of(
+                    send(outputStream, "tool_started", Map.of(
                             "message_id", "tool_1",
                             "tool_name", "platform_skill_data_analysis",
                             "detail", "Calling OpenClaw analysis"
@@ -67,19 +69,19 @@ public class AgentController {
 
                     TicketAnalyzeSuggestionResponse suggestion = openClawAgentAppService.analyzeTicket(request, actorUserId);
 
-                    send(emitter, "assistant_delta", Map.of(
+                    send(outputStream, "assistant_delta", Map.of(
                             "message_id", "assistant_1",
                             "delta", suggestion.summary() != null && !suggestion.summary().isBlank()
                                     ? suggestion.summary()
                                     : "Analysis complete."
                     ));
-                    send(emitter, "assistant_done", Map.of("message_id", "assistant_1"));
-                    send(emitter, "tool_finished", Map.of(
+                    send(outputStream, "assistant_done", Map.of("message_id", "assistant_1"));
+                    send(outputStream, "tool_finished", Map.of(
                             "message_id", "tool_1",
                             "tool_name", "platform_skill_data_analysis",
                             "detail", "OpenClaw analysis completed"
                     ));
-                    send(emitter, "structured_result", Map.of(
+                    send(outputStream, "structured_result", Map.of(
                             "type", request.mode(),
                             "payload", suggestion
                     ));
@@ -87,7 +89,7 @@ public class AgentController {
                     openClawAgentAppService.streamChat(request, actorUserId, delta -> {
                         try {
                             log.info("AgentController assistant_delta: {}", abbreviateForLog(delta));
-                            send(emitter, "assistant_delta", Map.of(
+                            send(outputStream, "assistant_delta", Map.of(
                                     "message_id", "assistant_1",
                                     "delta", delta
                             ));
@@ -95,29 +97,33 @@ public class AgentController {
                             throw new RuntimeException(ioException);
                         }
                     });
-                    send(emitter, "assistant_done", Map.of("message_id", "assistant_1"));
+                    send(outputStream, "assistant_done", Map.of("message_id", "assistant_1"));
                 }
 
-                send(emitter, "done", Map.of("session_id", sessionId));
-                emitter.complete();
+                send(outputStream, "done", Map.of("session_id", sessionId));
             } catch (Exception ex) {
                 log.warn("Agent SSE request failed: {}", ex.getMessage());
                 try {
-                    send(emitter, "error", Map.of("message", ex.getMessage() != null ? ex.getMessage() : "Agent request failed"));
+                    send(outputStream, "error", Map.of("message", ex.getMessage() != null ? ex.getMessage() : "Agent request failed"));
                 } catch (IOException ioException) {
                     log.debug("Unable to send agent error event: {}", ioException.getMessage());
                 }
-                emitter.complete();
             }
-        });
+        };
 
-        return emitter;
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache")
+                .header("X-Accel-Buffering", "no")
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(body);
     }
 
-    private void send(SseEmitter emitter, String eventName, Object payload) throws IOException {
-        emitter.send(SseEmitter.event()
-                .name(eventName)
-                .data(payload, MediaType.APPLICATION_JSON));
+    private void send(OutputStream outputStream, String eventName, Object payload) throws IOException {
+        String data = objectMapper.writeValueAsString(payload);
+        String chunk = "event: " + eventName + "\n" +
+                "data: " + data + "\n\n";
+        outputStream.write(chunk.getBytes(StandardCharsets.UTF_8));
+        outputStream.flush();
     }
 
     private AgentChatRequest parseRequest(String requestBody) {

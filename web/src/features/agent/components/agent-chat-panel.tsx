@@ -12,6 +12,7 @@ interface AgentChatPanelProps {
   context: AgentChatContext
   initialPrompt?: string
   autoRun?: boolean
+  storageKey?: string
   onApplySuggestion?: (suggestion: TicketAnalyzeSuggestion) => void
 }
 
@@ -20,6 +21,7 @@ export function AgentChatPanel({
   context,
   initialPrompt,
   autoRun = false,
+  storageKey,
   onApplySuggestion,
 }: AgentChatPanelProps) {
   const { t } = useTranslation()
@@ -28,6 +30,7 @@ export function AgentChatPanel({
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const { messages, isStreaming, send, interrupt } = useAgentChat({
     onSuggestion: onApplySuggestion,
+    storageKey,
   })
 
   useEffect(() => {

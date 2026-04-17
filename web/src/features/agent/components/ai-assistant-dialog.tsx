@@ -34,6 +34,7 @@ export function AiAssistantDialog({
           mode="general_chat"
           context={context ?? { source: 'general' }}
           initialPrompt=""
+          storageKey="skillhub.agent.general"
         />
       </DialogContent>
     </Dialog>

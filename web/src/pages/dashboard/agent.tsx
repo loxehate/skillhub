@@ -37,6 +37,7 @@ export function AgentPage() {
             },
           }}
           initialPrompt=""
+          storageKey="skillhub.agent.general"
         />
       </Card>
     </div>

@@ -18,37 +18,84 @@ function uid(prefix: string) {
 
 type UseAgentChatOptions = {
   onSuggestion?: (suggestion: TicketAnalyzeSuggestion) => void
+  storageKey?: string
 }
 
 export function useAgentChat(options?: UseAgentChatOptions) {
-  const [messages, setMessages] = useState<AgentMessage[]>([])
+  const [messages, setMessages] = useState<AgentMessage[]>(() => {
+    if (!options?.storageKey || typeof window === 'undefined') {
+      return []
+    }
+    try {
+      const raw = window.localStorage.getItem(options.storageKey)
+      if (!raw) {
+        return []
+      }
+      const parsed = JSON.parse(raw) as { messages?: AgentMessage[] }
+      return Array.isArray(parsed.messages) ? parsed.messages : []
+    } catch {
+      return []
+    }
+  })
   const [isStreaming, setIsStreaming] = useState(false)
-  const [sessionId, setSessionId] = useState<string>()
+  const [sessionId, setSessionId] = useState<string | undefined>(() => {
+    if (!options?.storageKey || typeof window === 'undefined') {
+      return undefined
+    }
+    try {
+      const raw = window.localStorage.getItem(options.storageKey)
+      if (!raw) {
+        return undefined
+      }
+      const parsed = JSON.parse(raw) as { sessionId?: string }
+      return typeof parsed.sessionId === 'string' && parsed.sessionId ? parsed.sessionId : undefined
+    } catch {
+      return undefined
+    }
+  })
   const abortRef = useRef<AbortController | null>(null)
 
+  const persistState = useCallback((nextMessages: AgentMessage[], nextSessionId?: string) => {
+    if (!options?.storageKey || typeof window === 'undefined') {
+      return
+    }
+    window.localStorage.setItem(options.storageKey, JSON.stringify({
+      sessionId: nextSessionId,
+      messages: nextMessages,
+    }))
+  }, [options?.storageKey])
+
   const appendMessage = useCallback((message: AgentMessage) => {
-    setMessages((prev) => [...prev, message])
-  }, [])
+    setMessages((prev) => {
+      const next = [...prev, message]
+      persistState(next, sessionId)
+      return next
+    })
+  }, [persistState, sessionId])
 
   const updateAssistantDelta = useCallback((messageId: string, delta: string) => {
-    setMessages((prev) =>
-      prev.map((item) =>
+    setMessages((prev) => {
+      const next = prev.map((item) =>
         item.role === 'assistant' && item.id === messageId
           ? { ...item, content: item.content + delta, streaming: true }
           : item,
-      ),
-    )
-  }, [])
+      )
+      persistState(next, sessionId)
+      return next
+    })
+  }, [persistState, sessionId])
 
   const finishAssistant = useCallback((messageId: string) => {
-    setMessages((prev) =>
-      prev.map((item) =>
+    setMessages((prev) => {
+      const next = prev.map((item) =>
         item.role === 'assistant' && item.id === messageId
           ? { ...item, streaming: false }
           : item,
-      ),
-    )
-  }, [])
+      )
+      persistState(next, sessionId)
+      return next
+    })
+  }, [persistState, sessionId])
 
   const send = useCallback(async (params: {
     message: string
@@ -120,6 +167,7 @@ export function useAgentChat(options?: UseAgentChatOptions) {
           case 'session_started':
             if (typeof payload.session_id === 'string' && payload.session_id) {
               setSessionId(payload.session_id)
+              persistState(messages, payload.session_id)
             }
             break
 
@@ -242,7 +290,8 @@ export function useAgentChat(options?: UseAgentChatOptions) {
     setMessages([])
     setSessionId(undefined)
     setIsStreaming(false)
-  }, [])
+    persistState([], undefined)
+  }, [persistState])
 
   return {
     messages,
