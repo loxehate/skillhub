@@ -198,7 +198,7 @@ export function useAgentChat(options?: UseAgentChatOptions) {
           break
         }
 
-        buffer += decoder.decode(value, { stream: true })
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
 
         while (buffer.includes('\n\n')) {
           const index = buffer.indexOf('\n\n')
@@ -208,6 +208,11 @@ export function useAgentChat(options?: UseAgentChatOptions) {
             flushEvent(chunk)
           }
         }
+      }
+
+      const finalChunk = buffer.trim()
+      if (finalChunk) {
+        flushEvent(finalChunk)
       }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {

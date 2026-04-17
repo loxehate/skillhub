@@ -6,11 +6,20 @@ import com.iflytek.skillhub.config.OpenClawAgentProperties;
 import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.dto.AgentChatRequest;
 import com.iflytek.skillhub.dto.TicketAnalyzeSuggestionResponse;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -27,11 +36,15 @@ public class OpenClawAgentAppService {
     private final OpenClawAgentProperties properties;
     private final ObjectMapper objectMapper;
     private final WebClient webClient;
+    private final HttpClient httpClient;
 
     public OpenClawAgentAppService(OpenClawAgentProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.webClient = WebClient.builder().build();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.getRequestTimeoutMs()))
+                .build();
     }
 
     public String resolveSessionId(String sessionId) {
@@ -95,6 +108,77 @@ public class OpenClawAgentAppService {
                 .block());
     }
 
+    public void streamChat(AgentChatRequest request, String actorUserId, Consumer<String> onDelta) {
+        ensureEnabled();
+        String mode = trimToEmpty(request.mode());
+        if (!"general_chat".equalsIgnoreCase(mode) && !"ticket_assistant".equalsIgnoreCase(mode)) {
+            throw new DomainBadRequestException("error.agent.mode.unsupported", request.mode());
+        }
+
+        try {
+            String requestJson = objectMapper.writeValueAsString(new OpenAiChatCompletionRequest(
+                    properties.getModel(),
+                    true,
+                    List.of(
+                            new OpenAiMessage("system", buildGeneralSystemPrompt(mode)),
+                            new OpenAiMessage("user", buildGeneralUserPrompt(request, actorUserId))
+                    )
+            ));
+
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(buildChatCompletionUrl()))
+                    .timeout(Duration.ofMillis(properties.getRequestTimeoutMs()))
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
+                    .POST(HttpRequest.BodyPublishers.ofString(requestJson, StandardCharsets.UTF_8));
+            applyAuth(builder);
+
+            HttpResponse<InputStream> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IllegalStateException("Upstream agent request failed: HTTP " + response.statusCode());
+            }
+
+            boolean emitted = false;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.isBlank() || line.startsWith(":")) {
+                        continue;
+                    }
+                    if (!line.startsWith("data:")) {
+                        continue;
+                    }
+
+                    String data = line.substring(5).trim();
+                    if ("[DONE]".equals(data)) {
+                        break;
+                    }
+
+                    String delta = extractStreamDelta(data);
+                    if (StringUtils.hasText(delta)) {
+                        emitted = true;
+                        onDelta.accept(delta);
+                    }
+                }
+            }
+
+            if (!emitted) {
+                String fallback = chat(request, actorUserId);
+                if (StringUtils.hasText(fallback)) {
+                    onDelta.accept(fallback);
+                }
+            }
+        } catch (DomainBadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("Streaming OpenClaw chat failed, falling back to non-stream response: {}", ex.getMessage());
+            String fallback = chat(request, actorUserId);
+            if (StringUtils.hasText(fallback)) {
+                onDelta.accept(fallback);
+            }
+        }
+    }
+
     private void ensureEnabled() {
         if (!properties.isEnabled()) {
             throw new DomainBadRequestException("error.agent.disabled");
@@ -107,6 +191,12 @@ public class OpenClawAgentAppService {
     private void applyAuth(HttpHeaders headers) {
         if (StringUtils.hasText(properties.getApiKey())) {
             headers.setBearerAuth(properties.getApiKey().trim());
+        }
+    }
+
+    private void applyAuth(HttpRequest.Builder builder) {
+        if (StringUtils.hasText(properties.getApiKey())) {
+            builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.getApiKey().trim());
         }
     }
 
@@ -247,6 +337,35 @@ public class OpenClawAgentAppService {
             throw new DomainBadRequestException("error.agent.response.invalid");
         }
         return content;
+    }
+
+    private String extractStreamDelta(String rawData) {
+        try {
+            JsonNode root = objectMapper.readTree(rawData);
+            JsonNode choices = root.get("choices");
+            if (choices == null || !choices.isArray() || choices.isEmpty()) {
+                return "";
+            }
+
+            JsonNode firstChoice = choices.get(0);
+            JsonNode delta = firstChoice.get("delta");
+            if (delta != null) {
+                String content = text(delta, "content", "");
+                if (StringUtils.hasText(content)) {
+                    return content;
+                }
+            }
+
+            JsonNode message = firstChoice.get("message");
+            if (message != null) {
+                return text(message, "content", "");
+            }
+
+            return "";
+        } catch (Exception ex) {
+            log.debug("Failed to parse streamed OpenClaw delta: {}", ex.getMessage());
+            return "";
+        }
     }
 
     private TicketAnalyzeSuggestionResponse parseSuggestion(String rawContent,

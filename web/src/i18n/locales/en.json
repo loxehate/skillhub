@@ -1592,6 +1592,8 @@
     "inputPlaceholder": "Ask the assistant anything about SkillHub.",
     "stopAction": "Stop",
     "sendAction": "Send",
-    "analyzing": "Analyzing..."
+    "analyzing": "Analyzing...",
+    "userLabel": "You",
+    "assistantLabel": "Assistant"
   }
 }

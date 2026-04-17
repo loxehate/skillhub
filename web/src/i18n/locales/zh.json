@@ -1592,6 +1592,8 @@
     "inputPlaceholder": "输入你想咨询的问题",
     "stopAction": "停止",
     "sendAction": "发送",
-    "analyzing": "思考中..."
+    "analyzing": "思考中...",
+    "userLabel": "你",
+    "assistantLabel": "助手"
   }
 }

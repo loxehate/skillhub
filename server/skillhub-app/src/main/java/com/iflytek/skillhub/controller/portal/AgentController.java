@@ -79,11 +79,16 @@ public class AgentController {
                             "payload", suggestion
                     ));
                 } else {
-                    String answer = openClawAgentAppService.chat(request, actorUserId);
-                    send(emitter, "assistant_delta", Map.of(
-                            "message_id", "assistant_1",
-                            "delta", answer
-                    ));
+                    openClawAgentAppService.streamChat(request, actorUserId, delta -> {
+                        try {
+                            send(emitter, "assistant_delta", Map.of(
+                                    "message_id", "assistant_1",
+                                    "delta", delta
+                            ));
+                        } catch (IOException ioException) {
+                            throw new RuntimeException(ioException);
+                        }
+                    });
                     send(emitter, "assistant_done", Map.of("message_id", "assistant_1"));
                 }
 
