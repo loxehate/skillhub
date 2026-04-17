@@ -19,6 +19,7 @@ function uid(prefix: string) {
 type UseAgentChatOptions = {
   onSuggestion?: (suggestion: TicketAnalyzeSuggestion) => void
   storageKey?: string
+  chatId?: string
   onStateChange?: (state: { messages: AgentMessage[], sessionId?: string }) => void
 }
 
@@ -141,6 +142,7 @@ export function useAgentChat(options?: UseAgentChatOptions) {
         },
         body: JSON.stringify({
           session_id: sessionId,
+          chat_id: options?.chatId,
           message: params.message,
           mode: params.mode,
           context: params.context,

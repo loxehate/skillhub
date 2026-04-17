@@ -186,6 +186,7 @@ export function AgentConversationPanel({
         key={activeConversation.id}
         mode={mode}
         context={context}
+        chatId={activeConversation.id}
         storageKey={activeConversation.storageKey}
         onConversationStateChange={handleConversationStateChange}
       />

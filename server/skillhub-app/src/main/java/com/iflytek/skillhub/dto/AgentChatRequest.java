@@ -10,6 +10,9 @@ public record AgentChatRequest(
         @JsonProperty("session_id")
         String sessionId,
 
+        @JsonProperty("chat_id")
+        String chatId,
+
         @NotBlank(message = "{validation.agent.message.required}")
         @Size(max = 4000, message = "{validation.agent.message.size}")
         String message,

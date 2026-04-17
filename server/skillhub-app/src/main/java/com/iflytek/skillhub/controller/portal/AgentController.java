@@ -84,7 +84,7 @@ public class AgentController {
                         "payload", suggestion
                 ));
             } else {
-                openClawAgentAppService.streamChat(request, actorUserId, delta -> {
+                openClawAgentAppService.streamChat(request, actorUserId, sessionId, delta -> {
                     try {
                         log.info("AgentController assistant_delta: {}", abbreviateForLog(delta));
                         send(outputStream, response, "assistant_delta", Map.of(

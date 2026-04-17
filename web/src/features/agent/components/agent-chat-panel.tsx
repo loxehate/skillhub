@@ -10,6 +10,7 @@ import { AgentSuggestionCard } from './agent-suggestion-card'
 interface AgentChatPanelProps {
   mode: AgentMode
   context: AgentChatContext
+  chatId?: string
   initialPrompt?: string
   autoRun?: boolean
   storageKey?: string
@@ -20,6 +21,7 @@ interface AgentChatPanelProps {
 export function AgentChatPanel({
   mode,
   context,
+  chatId,
   initialPrompt,
   autoRun = false,
   storageKey,
@@ -33,6 +35,7 @@ export function AgentChatPanel({
   const { messages, isStreaming, send, interrupt } = useAgentChat({
     onSuggestion: onApplySuggestion,
     storageKey,
+    chatId,
     onStateChange: onConversationStateChange,
   })
 

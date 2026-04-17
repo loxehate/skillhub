@@ -68,6 +68,7 @@ export interface AgentChatContext {
 
 export interface AgentChatRequest {
   session_id?: string
+  chat_id?: string
   message: string
   mode: AgentMode
   context: AgentChatContext

@@ -85,11 +85,14 @@ public class OpenClawAgentAppService {
         return parseSuggestion(extractContent(response), draft);
     }
 
-    public String chat(AgentChatRequest request, String actorUserId) {
-        return chat(List.of(new ConversationTurn("user", trimToEmpty(request.message()))), request, actorUserId);
+    public String chat(AgentChatRequest request, String actorUserId, String resolvedSessionId) {
+        return chat(List.of(new ConversationTurn("user", trimToEmpty(request.message()))), request, actorUserId, resolvedSessionId);
     }
 
-    public String chat(List<ConversationTurn> history, AgentChatRequest request, String actorUserId) {
+    public String chat(List<ConversationTurn> history,
+                       AgentChatRequest request,
+                       String actorUserId,
+                       String resolvedSessionId) {
         ensureEnabled();
         String mode = trimToEmpty(request.mode());
         if (!"general_chat".equalsIgnoreCase(mode) && !"ticket_assistant".equalsIgnoreCase(mode)) {
@@ -103,6 +106,8 @@ public class OpenClawAgentAppService {
                 .bodyValue(new OpenAiChatCompletionRequest(
                         properties.getModel(),
                         false,
+                        resolvedSessionId,
+                        resolveChatId(request),
                         buildConversationMessages(history, request, actorUserId)
                 ))
                 .retrieve()
@@ -111,13 +116,17 @@ public class OpenClawAgentAppService {
                 .block());
     }
 
-    public void streamChat(AgentChatRequest request, String actorUserId, Consumer<String> onDelta) {
-        streamChat(List.of(new ConversationTurn("user", trimToEmpty(request.message()))), request, actorUserId, onDelta);
+    public void streamChat(AgentChatRequest request,
+                           String actorUserId,
+                           String resolvedSessionId,
+                           Consumer<String> onDelta) {
+        streamChat(List.of(new ConversationTurn("user", trimToEmpty(request.message()))), request, actorUserId, resolvedSessionId, onDelta);
     }
 
     public void streamChat(List<ConversationTurn> history,
                            AgentChatRequest request,
                            String actorUserId,
+                           String resolvedSessionId,
                            Consumer<String> onDelta) {
         ensureEnabled();
         String mode = trimToEmpty(request.mode());
@@ -129,6 +138,8 @@ public class OpenClawAgentAppService {
             String requestJson = objectMapper.writeValueAsString(new OpenAiChatCompletionRequest(
                     properties.getModel(),
                     true,
+                    resolvedSessionId,
+                    resolveChatId(request),
                     buildConversationMessages(history, request, actorUserId)
             ));
 
@@ -171,7 +182,7 @@ public class OpenClawAgentAppService {
             }
 
             if (!emitted) {
-                String fallback = chat(history, request, actorUserId);
+                String fallback = chat(history, request, actorUserId, resolvedSessionId);
                 if (StringUtils.hasText(fallback)) {
                     log.info("OpenClaw fallback response: {}", abbreviateForLog(fallback));
                     emitChunkedFallback(fallback, onDelta);
@@ -181,7 +192,7 @@ public class OpenClawAgentAppService {
             throw ex;
         } catch (Exception ex) {
             log.warn("Streaming OpenClaw chat failed, falling back to non-stream response: {}", ex.getMessage());
-            String fallback = chat(history, request, actorUserId);
+            String fallback = chat(history, request, actorUserId, resolvedSessionId);
             if (StringUtils.hasText(fallback)) {
                 log.info("OpenClaw fallback response after stream failure: {}", abbreviateForLog(fallback));
                 emitChunkedFallback(fallback, onDelta);
@@ -216,6 +227,16 @@ public class OpenClawAgentAppService {
             base = base.substring(0, base.length() - 1);
         }
         return base + "/chat/completions";
+    }
+
+    private String resolveChatId(AgentChatRequest request) {
+        if (request != null && StringUtils.hasText(request.chatId())) {
+            return request.chatId().trim();
+        }
+        if (request != null && StringUtils.hasText(request.sessionId())) {
+            return "chat-" + request.sessionId().trim();
+        }
+        return "chat-" + UUID.randomUUID();
     }
 
     private String buildSystemPrompt() {
@@ -529,6 +550,10 @@ public class OpenClawAgentAppService {
     private record OpenAiChatCompletionRequest(
             String model,
             boolean stream,
+            @com.fasterxml.jackson.annotation.JsonProperty("session_id")
+            String sessionId,
+            @com.fasterxml.jackson.annotation.JsonProperty("chat_id")
+            String chatId,
             List<OpenAiMessage> messages
     ) {}
 
