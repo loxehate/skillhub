@@ -84,13 +84,10 @@ public class AgentController {
                         "payload", suggestion
                 ));
             } else {
-                openClawAgentAppService.streamChat(request, actorUserId, sessionId, delta -> {
+                openClawAgentAppService.streamChat(request, actorUserId, sessionId, eventData -> {
                     try {
-                        log.info("AgentController assistant_delta: {}", abbreviateForLog(delta));
-                        send(outputStream, response, "assistant_delta", Map.of(
-                                "message_id", "assistant_1",
-                                "delta", delta
-                        ));
+                        log.info("AgentController stream event: {}", abbreviateForLog(eventData));
+                        sendRawData(outputStream, response, eventData);
                     } catch (IOException ioException) {
                         throw new RuntimeException(ioException);
                     }
@@ -119,6 +116,15 @@ public class AgentController {
         String data = objectMapper.writeValueAsString(payload);
         String chunk = "event: " + eventName + "\n" +
                 "data: " + data + "\n\n";
+        outputStream.write(chunk.getBytes(StandardCharsets.UTF_8));
+        outputStream.flush();
+        response.flushBuffer();
+    }
+
+    private void sendRawData(OutputStream outputStream,
+                             HttpServletResponse response,
+                             String payload) throws IOException {
+        String chunk = "data: " + payload + "\n\n";
         outputStream.write(chunk.getBytes(StandardCharsets.UTF_8));
         outputStream.flush();
         response.flushBuffer();

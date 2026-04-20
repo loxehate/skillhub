@@ -6,6 +6,7 @@ import { Textarea } from '@/shared/ui/textarea'
 import type { AgentChatContext, AgentMessage, AgentMode, TicketAnalyzeSuggestion } from '../types'
 import { useAgentChat } from '../use-agent-chat'
 import { AgentSuggestionCard } from './agent-suggestion-card'
+import { MarkdownRenderer } from '@/features/skill/markdown-renderer'
 
 interface AgentChatPanelProps {
   mode: AgentMode
@@ -32,6 +33,7 @@ export function AgentChatPanel({
   const [input, setInput] = useState(initialPrompt ?? '')
   const hasStartedRef = useRef(false)
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const { messages, isStreaming, send, interrupt } = useAgentChat({
     onSuggestion: onApplySuggestion,
     storageKey,
@@ -64,11 +66,17 @@ export function AgentChatPanel({
   }, [messages, isStreaming])
 
   const handleSend = async () => {
-    if (!input.trim()) {
+    const nextInput = textareaRef.current?.value ?? input
+    const trimmed = nextInput.trim()
+    if (!trimmed) {
       return
     }
+    setInput('')
+    if (textareaRef.current) {
+      textareaRef.current.value = ''
+    }
     await send({
-      message: input.trim(),
+      message: trimmed,
       mode,
       context,
     })
@@ -123,7 +131,13 @@ export function AgentChatPanel({
                     ? t('agent.userLabel', { defaultValue: 'You' })
                     : t('agent.assistantLabel', { defaultValue: 'Assistant' })}
                 </div>
-                <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                {isUser ? (
+                  <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                ) : (
+                  <div className="agent-markdown break-words">
+                    <MarkdownRenderer content={message.content} className="text-sm" />
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -132,8 +146,15 @@ export function AgentChatPanel({
 
       <div className="space-y-3">
         <Textarea
+          ref={textareaRef}
           value={input}
           onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              void handleSend()
+            }
+          }}
           rows={4}
           placeholder={t('agent.inputPlaceholder', { defaultValue: 'Ask the assistant anything about SkillHub.' })}
         />

@@ -117,15 +117,15 @@ public class OpenClawAgentAppService {
     public void streamChat(AgentChatRequest request,
                            String actorUserId,
                            String resolvedSessionId,
-                           Consumer<String> onDelta) {
-        streamChat(resolveConversationHistory(request), request, actorUserId, resolvedSessionId, onDelta);
+                           Consumer<String> onEventData) {
+        streamChat(resolveConversationHistory(request), request, actorUserId, resolvedSessionId, onEventData);
     }
 
     public void streamChat(List<ConversationTurn> history,
                            AgentChatRequest request,
                            String actorUserId,
                            String resolvedSessionId,
-                           Consumer<String> onDelta) {
+                           Consumer<String> onEventData) {
         ensureEnabled();
         String mode = trimToEmpty(request.mode());
         if (!"general_chat".equalsIgnoreCase(mode) && !"ticket_assistant".equalsIgnoreCase(mode)) {
@@ -173,8 +173,8 @@ public class OpenClawAgentAppService {
                     if (StringUtils.hasText(delta)) {
                         emitted = true;
                         log.info("OpenClaw stream delta: {}", abbreviateForLog(delta));
-                        onDelta.accept(delta);
                     }
+                    onEventData.accept(data);
                 }
             }
 
@@ -182,7 +182,7 @@ public class OpenClawAgentAppService {
                 String fallback = chat(history, request, actorUserId, resolvedSessionId);
                 if (StringUtils.hasText(fallback)) {
                     log.info("OpenClaw fallback response: {}", abbreviateForLog(fallback));
-                    emitChunkedFallback(fallback, onDelta);
+                    emitChunkedFallback(fallback, onEventData);
                 }
             }
         } catch (DomainBadRequestException ex) {
@@ -192,7 +192,7 @@ public class OpenClawAgentAppService {
             String fallback = chat(history, request, actorUserId, resolvedSessionId);
             if (StringUtils.hasText(fallback)) {
                 log.info("OpenClaw fallback response after stream failure: {}", abbreviateForLog(fallback));
-                emitChunkedFallback(fallback, onDelta);
+                emitChunkedFallback(fallback, onEventData);
             }
         }
     }
@@ -477,7 +477,7 @@ public class OpenClawAgentAppService {
         }
     }
 
-    private void emitChunkedFallback(String content, Consumer<String> onDelta) {
+    private void emitChunkedFallback(String content, Consumer<String> onEventData) {
         String text = trimToEmpty(content);
         if (!StringUtils.hasText(text)) {
             return;
@@ -486,7 +486,15 @@ public class OpenClawAgentAppService {
         int step = 24;
         for (int index = 0; index < text.length(); index += step) {
             int end = Math.min(text.length(), index + step);
-            onDelta.accept(text.substring(index, end));
+            onEventData.accept("{\"type\":\"response.output_text.delta\",\"delta\":%s}".formatted(quoteJson(text.substring(index, end))));
+        }
+    }
+
+    private String quoteJson(String value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception ex) {
+            return "\"\"";
         }
     }
 

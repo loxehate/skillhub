@@ -29,6 +29,19 @@ function toConversationTurns(messages: AgentMessage[]): AgentConversationTurn[] 
   })
 }
 
+function extractOpenClawDelta(payload: Record<string, unknown>) {
+  if (typeof payload.delta === 'string' && payload.delta) {
+    return payload.delta
+  }
+  if (typeof payload.output_text === 'string' && payload.output_text) {
+    return payload.output_text
+  }
+  if (payload.type === 'response.output_text.done' && typeof payload.text === 'string') {
+    return payload.text
+  }
+  return ''
+}
+
 type UseAgentChatOptions = {
   onSuggestion?: (suggestion: TicketAnalyzeSuggestion) => void
   storageKey?: string
@@ -204,6 +217,24 @@ export function useAgentChat(options?: UseAgentChatOptions) {
         const payload = typeof parsed === 'string'
           ? JSON.parse(parsed) as Record<string, unknown>
           : parsed as Record<string, unknown>
+
+        if (eventName === 'message') {
+          const delta = extractOpenClawDelta(payload)
+          if (delta) {
+            if (!currentAssistantId) {
+              currentAssistantId = uid('assistant')
+              appendMessage({
+                id: currentAssistantId,
+                role: 'assistant',
+                content: '',
+                streaming: true,
+                createdAt: nowIso(),
+              })
+            }
+            updateAssistantDelta(currentAssistantId, delta)
+          }
+          return
+        }
 
         switch (eventName) {
           case 'session_started':
