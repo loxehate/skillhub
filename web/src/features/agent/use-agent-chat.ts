@@ -69,6 +69,7 @@ export function useAgentChat(options?: UseAgentChatOptions) {
     }
   })
   const abortRef = useRef<AbortController | null>(null)
+  const sendingRef = useRef(false)
   const messagesRef = useRef<AgentMessage[]>(messages)
   const sessionIdRef = useRef<string | undefined>(sessionId)
 
@@ -134,8 +135,13 @@ export function useAgentChat(options?: UseAgentChatOptions) {
     mode: AgentMode
     context: AgentChatContext
   }) => {
+    if (sendingRef.current || abortRef.current) {
+      return
+    }
+
     const controller = new AbortController()
     abortRef.current = controller
+    sendingRef.current = true
     setIsStreaming(true)
 
     appendMessage({
@@ -314,12 +320,14 @@ export function useAgentChat(options?: UseAgentChatOptions) {
     } finally {
       setIsStreaming(false)
       abortRef.current = null
+      sendingRef.current = false
     }
   }, [appendMessage, finishAssistant, options, sessionId, updateAssistantDelta])
 
   const interrupt = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
+    sendingRef.current = false
     setIsStreaming(false)
   }, [])
 
@@ -328,6 +336,7 @@ export function useAgentChat(options?: UseAgentChatOptions) {
     setSessionId(undefined)
     messagesRef.current = []
     sessionIdRef.current = undefined
+    sendingRef.current = false
     setIsStreaming(false)
     persistState([], undefined)
   }, [persistState])

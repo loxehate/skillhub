@@ -129,7 +129,7 @@ skillhub:
     enabled: ${SKILLHUB_AGENT_ENABLED:false}
     api-base-url: ${SKILLHUB_AGENT_API_BASE_URL:}
     api-key: ${SKILLHUB_AGENT_API_KEY:}
-    model: ${SKILLHUB_AGENT_MODEL:openclaw-agent}
+    agent-id: ${SKILLHUB_AGENT_ID:main}
     request-timeout-ms: ${SKILLHUB_AGENT_REQUEST_TIMEOUT_MS:60000}
     sse-timeout-ms: ${SKILLHUB_AGENT_SSE_TIMEOUT_MS:120000}
   device-auth:

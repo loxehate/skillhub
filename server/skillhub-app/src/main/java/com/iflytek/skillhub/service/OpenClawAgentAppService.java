@@ -33,6 +33,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class OpenClawAgentAppService {
 
     private static final Logger log = LoggerFactory.getLogger(OpenClawAgentAppService.class);
+    private static final String OPENCLAW_MODEL = "openclaw";
 
     private final OpenClawAgentProperties properties;
     private final ObjectMapper objectMapper;
@@ -65,22 +66,18 @@ public class OpenClawAgentAppService {
             throw new DomainBadRequestException("error.agent.description.required");
         }
 
-        OpenAiChatCompletionResponse response = webClient.post()
-                .uri(buildChatCompletionUrl())
+        OpenClawResponse response = webClient.post()
+                .uri(buildResponsesUrl())
                 .contentType(MediaType.APPLICATION_JSON)
-                .headers(this::applyAuth)
-                .bodyValue(new OpenAiChatCompletionRequest(
-                        properties.getModel(),
+                .headers(headers -> applyHeaders(headers, actorUserId, request, resolveSessionId(request.sessionId())))
+                .bodyValue(new OpenClawResponsesRequest(
                         false,
-                        resolveSessionId(request.sessionId()),
-                        resolveChatId(request),
-                        List.of(
-                                new OpenAiMessage("system", buildSystemPrompt()),
-                                new OpenAiMessage("user", buildUserPrompt(request, actorUserId))
-                        )
+                        OPENCLAW_MODEL,
+                        buildAnalyzeInput(request, actorUserId),
+                        actorUserId
                 ))
                 .retrieve()
-                .bodyToMono(OpenAiChatCompletionResponse.class)
+                .bodyToMono(OpenClawResponse.class)
                 .timeout(Duration.ofMillis(properties.getRequestTimeoutMs()))
                 .block();
 
@@ -102,18 +99,17 @@ public class OpenClawAgentAppService {
         }
 
         return extractContent(webClient.post()
-                .uri(buildChatCompletionUrl())
+                .uri(buildResponsesUrl())
                 .contentType(MediaType.APPLICATION_JSON)
-                .headers(this::applyAuth)
-                .bodyValue(new OpenAiChatCompletionRequest(
-                        properties.getModel(),
+                .headers(headers -> applyHeaders(headers, actorUserId, request, resolvedSessionId))
+                .bodyValue(new OpenClawResponsesRequest(
                         false,
-                        resolvedSessionId,
-                        resolveChatId(request),
-                        buildConversationMessages(history, request, actorUserId)
+                        OPENCLAW_MODEL,
+                        buildChatInput(history, request, actorUserId),
+                        actorUserId
                 ))
                 .retrieve()
-                .bodyToMono(OpenAiChatCompletionResponse.class)
+                .bodyToMono(OpenClawResponse.class)
                 .timeout(Duration.ofMillis(properties.getRequestTimeoutMs()))
                 .block());
     }
@@ -137,21 +133,20 @@ public class OpenClawAgentAppService {
         }
 
         try {
-            String requestJson = objectMapper.writeValueAsString(new OpenAiChatCompletionRequest(
-                    properties.getModel(),
+            String requestJson = objectMapper.writeValueAsString(new OpenClawResponsesRequest(
                     true,
-                    resolvedSessionId,
-                    resolveChatId(request),
-                    buildConversationMessages(history, request, actorUserId)
+                    OPENCLAW_MODEL,
+                    buildChatInput(history, request, actorUserId),
+                    actorUserId
             ));
 
             HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(buildChatCompletionUrl()))
+                    .uri(URI.create(buildResponsesUrl()))
                     .timeout(Duration.ofMillis(properties.getRequestTimeoutMs()))
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .header(HttpHeaders.ACCEPT, "*/*")
                     .POST(HttpRequest.BodyPublishers.ofString(requestJson, StandardCharsets.UTF_8));
-            applyAuth(builder);
+            applyHeaders(builder, actorUserId, request, resolvedSessionId);
 
             HttpResponse<InputStream> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -223,12 +218,30 @@ public class OpenClawAgentAppService {
         }
     }
 
-    private String buildChatCompletionUrl() {
+    private void applyHeaders(HttpHeaders headers,
+                              String actorUserId,
+                              AgentChatRequest request,
+                              String resolvedSessionId) {
+        applyAuth(headers);
+        headers.set("x-openclaw-agent-id", resolveAgentId());
+        headers.set("x-openclaw-session-key", buildOpenClawSessionKey(actorUserId, request, resolvedSessionId));
+    }
+
+    private void applyHeaders(HttpRequest.Builder builder,
+                              String actorUserId,
+                              AgentChatRequest request,
+                              String resolvedSessionId) {
+        applyAuth(builder);
+        builder.header("x-openclaw-agent-id", resolveAgentId());
+        builder.header("x-openclaw-session-key", buildOpenClawSessionKey(actorUserId, request, resolvedSessionId));
+    }
+
+    private String buildResponsesUrl() {
         String base = properties.getApiBaseUrl().trim();
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return base + "/chat/completions";
+        return base + "/responses";
     }
 
     private String resolveChatId(AgentChatRequest request) {
@@ -239,6 +252,20 @@ public class OpenClawAgentAppService {
             return "chat-" + request.sessionId().trim();
         }
         return "chat-" + UUID.randomUUID();
+    }
+
+    private String resolveAgentId() {
+        return StringUtils.hasText(properties.getAgentId()) ? properties.getAgentId().trim() : "main";
+    }
+
+    private String buildOpenClawSessionKey(String actorUserId,
+                                           AgentChatRequest request,
+                                           String resolvedSessionId) {
+        return "%s:%s:%s".formatted(
+                trimToEmpty(actorUserId),
+                resolveChatId(request),
+                trimToEmpty(resolvedSessionId)
+        );
     }
 
     private List<ConversationTurn> resolveConversationHistory(AgentChatRequest request) {
@@ -292,11 +319,15 @@ public class OpenClawAgentAppService {
                 """;
     }
 
-    private List<OpenAiMessage> buildConversationMessages(List<ConversationTurn> history,
-                                                          AgentChatRequest request,
-                                                          String actorUserId) {
-        List<OpenAiMessage> messages = new ArrayList<>();
-        messages.add(new OpenAiMessage("system", buildGeneralSystemPrompt(trimToEmpty(request.mode()), request, actorUserId)));
+    private String buildAnalyzeInput(AgentChatRequest request, String actorUserId) {
+        return buildSystemPrompt() + "\n\n" + buildUserPrompt(request, actorUserId);
+    }
+
+    private String buildChatInput(List<ConversationTurn> history,
+                                  AgentChatRequest request,
+                                  String actorUserId) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(buildGeneralSystemPrompt(trimToEmpty(request.mode()), request, actorUserId)).append("\n\n");
         for (ConversationTurn turn : history) {
             if (turn == null || !StringUtils.hasText(turn.role()) || !StringUtils.hasText(turn.content())) {
                 continue;
@@ -305,9 +336,9 @@ public class OpenClawAgentAppService {
             if (!Objects.equals(role, "user") && !Objects.equals(role, "assistant")) {
                 continue;
             }
-            messages.add(new OpenAiMessage(role, turn.content().trim()));
+            builder.append(role).append(": ").append(turn.content().trim()).append("\n");
         }
-        return messages;
+        return builder.toString().trim();
     }
 
     private String buildGeneralSystemPrompt(String mode, AgentChatRequest request, String actorUserId) {
@@ -397,13 +428,11 @@ public class OpenClawAgentAppService {
         );
     }
 
-    private String extractContent(OpenAiChatCompletionResponse response) {
-        if (response == null || response.choices() == null || response.choices().isEmpty()) {
+    private String extractContent(OpenClawResponse response) {
+        if (response == null) {
             throw new DomainBadRequestException("error.agent.response.invalid");
         }
-
-        OpenAiChatCompletionResponse.Choice choice = response.choices().get(0);
-        String content = choice != null && choice.message() != null ? choice.message().content() : null;
+        String content = response.outputText();
         if (!StringUtils.hasText(content)) {
             throw new DomainBadRequestException("error.agent.response.invalid");
         }
@@ -413,26 +442,35 @@ public class OpenClawAgentAppService {
     private String extractStreamDelta(String rawData) {
         try {
             JsonNode root = objectMapper.readTree(rawData);
-            JsonNode choices = root.get("choices");
-            if (choices == null || !choices.isArray() || choices.isEmpty()) {
-                return "";
+            String type = text(root, "type", "");
+            if ("response.output_text.delta".equals(type)) {
+                return text(root, "delta", "");
             }
-
-            JsonNode firstChoice = choices.get(0);
-            JsonNode delta = firstChoice.get("delta");
+            if ("response.output_text.done".equals(type)) {
+                return text(root, "text", "");
+            }
+            JsonNode delta = root.get("delta");
             if (delta != null) {
-                String content = text(delta, "content", "");
+                String content = delta.isTextual() ? delta.asText("") : text(delta, "content", "");
                 if (StringUtils.hasText(content)) {
                     return content;
                 }
             }
-
-            JsonNode message = firstChoice.get("message");
-            if (message != null) {
-                return text(message, "content", "");
+            JsonNode output = root.get("output");
+            if (output != null && output.isArray()) {
+                for (JsonNode item : output) {
+                    JsonNode contentItems = item.get("content");
+                    if (contentItems != null && contentItems.isArray()) {
+                        for (JsonNode contentItem : contentItems) {
+                            String candidate = text(contentItem, "text", "");
+                            if (StringUtils.hasText(candidate)) {
+                                return candidate;
+                            }
+                        }
+                    }
+                }
             }
-
-            return "";
+            return text(root, "output_text", "");
         } catch (Exception ex) {
             log.debug("Failed to parse streamed OpenClaw delta: {}", ex.getMessage());
             return "";
@@ -565,19 +603,11 @@ public class OpenClawAgentAppService {
         return value == null ? "" : value.trim();
     }
 
-    private record OpenAiChatCompletionRequest(
-            String model,
+    private record OpenClawResponsesRequest(
             boolean stream,
-            @com.fasterxml.jackson.annotation.JsonProperty("session_id")
-            String sessionId,
-            @com.fasterxml.jackson.annotation.JsonProperty("chat_id")
-            String chatId,
-            List<OpenAiMessage> messages
-    ) {}
-
-    private record OpenAiMessage(
-            String role,
-            String content
+            String model,
+            String input,
+            String user
     ) {}
 
     public record ConversationTurn(
@@ -585,15 +615,8 @@ public class OpenClawAgentAppService {
             String content
     ) {}
 
-    private record OpenAiChatCompletionResponse(
-            List<Choice> choices
-    ) {
-        private record Choice(
-                Message message
-        ) {}
-
-        private record Message(
-                String content
-        ) {}
-    }
+    private record OpenClawResponse(
+            @com.fasterxml.jackson.annotation.JsonProperty("output_text")
+            String outputText
+    ) {}
 }

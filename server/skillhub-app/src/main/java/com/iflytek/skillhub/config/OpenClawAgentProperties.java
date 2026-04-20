@@ -11,7 +11,7 @@ public class OpenClawAgentProperties {
     private boolean enabled = false;
     private String apiBaseUrl = "";
     private String apiKey = "";
-    private String model = "openclaw-agent";
+    private String agentId = "main";
     private long requestTimeoutMs = 60000;
     private long sseTimeoutMs = 120000;
 
@@ -39,12 +39,12 @@ public class OpenClawAgentProperties {
         this.apiKey = apiKey;
     }
 
-    public String getModel() {
-        return model;
+    public String getAgentId() {
+        return agentId;
     }
 
-    public void setModel(String model) {
-        this.model = model;
+    public void setAgentId(String agentId) {
+        this.agentId = agentId;
     }
 
     public long getRequestTimeoutMs() {
@@ -64,6 +64,6 @@ public class OpenClawAgentProperties {
     }
 
     public boolean isApiConfigured() {
-        return StringUtils.hasText(apiBaseUrl) && StringUtils.hasText(model);
+        return StringUtils.hasText(apiBaseUrl);
     }
 }
