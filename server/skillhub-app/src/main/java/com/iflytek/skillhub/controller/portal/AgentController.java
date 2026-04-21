@@ -5,6 +5,7 @@ import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
 import com.iflytek.skillhub.dto.AgentChatRequest;
 import com.iflytek.skillhub.dto.TicketAnalyzeSuggestionResponse;
 import com.iflytek.skillhub.service.OpenClawAgentAppService;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -13,14 +14,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
 @RequestMapping("/api/web/agent")
@@ -42,98 +41,108 @@ public class AgentController {
             consumes = {MediaType.APPLICATION_JSON_VALUE, MediaType.TEXT_PLAIN_VALUE},
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
-    public ResponseEntity<StreamingResponseBody> chat(@RequestBody String requestBody,
-                                                      @AuthenticationPrincipal PlatformPrincipal principal) {
+    public void chat(@RequestBody String requestBody,
+                     HttpServletResponse response,
+                     @AuthenticationPrincipal PlatformPrincipal principal) throws IOException {
         AgentChatRequest request = parseRequest(requestBody);
         String sessionId = openClawAgentAppService.resolveSessionId(request.sessionId());
         String actorUserId = principal != null ? principal.userId() : "anonymous";
-        StreamingResponseBody stream = outputStream -> {
-            try {
-                send(outputStream, "session_started", Map.of("session_id", sessionId));
-                if ("ticket_analyze".equalsIgnoreCase(request.mode())) {
-                    send(outputStream, "tool_started", Map.of(
-                            "message_id", "tool_1",
-                            "tool_name", "platform_skill_data_analysis",
-                            "detail", "Calling OpenClaw analysis"
-                    ));
 
-                    TicketAnalyzeSuggestionResponse suggestion = openClawAgentAppService.analyzeTicket(request, actorUserId);
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
 
-                    send(outputStream, "assistant_delta", Map.of(
-                            "message_id", "assistant_1",
-                            "delta", suggestion.summary() != null && !suggestion.summary().isBlank()
-                                    ? suggestion.summary()
-                                    : "Analysis complete."
-                    ));
-                    send(outputStream, "assistant_done", Map.of("message_id", "assistant_1"));
-                    send(outputStream, "tool_finished", Map.of(
-                            "message_id", "tool_1",
-                            "tool_name", "platform_skill_data_analysis",
-                            "detail", "OpenClaw analysis completed"
-                    ));
-                    send(outputStream, "structured_result", Map.of(
-                            "type", request.mode(),
-                            "payload", suggestion
-                    ));
-                } else {
-                    final String assistantMessageId = "assistant_1";
-                    final boolean[] assistantStarted = {false};
-                    final boolean[] assistantFinished = {false};
-                    openClawAgentAppService.streamChat(request, actorUserId, sessionId, eventData -> {
-                        try {
-                            String delta = extractOpenClawDelta(eventData);
-                            if (StringUtils.hasText(delta)) {
-                                send(outputStream, "assistant_delta", Map.of(
-                                        "message_id", assistantMessageId,
-                                        "delta", delta
-                                ));
-                                assistantStarted[0] = true;
-                            }
-                            if (isOpenClawDone(eventData) && assistantStarted[0] && !assistantFinished[0]) {
-                                send(outputStream, "assistant_done", Map.of("message_id", assistantMessageId));
-                                assistantFinished[0] = true;
-                            }
-                        } catch (IOException ioException) {
-                            throw new RuntimeException(ioException);
-                        }
-                    });
-                    if (!assistantStarted[0]) {
-                        String fallback = openClawAgentAppService.chat(request, actorUserId, sessionId);
-                        if (StringUtils.hasText(fallback)) {
-                            send(outputStream, "assistant_delta", Map.of(
+        OutputStream outputStream = response.getOutputStream();
+        try {
+            send(outputStream, response, "session_started", Map.of("session_id", sessionId));
+
+            if ("ticket_analyze".equalsIgnoreCase(request.mode())) {
+                send(outputStream, response, "tool_started", Map.of(
+                        "message_id", "tool_1",
+                        "tool_name", "platform_skill_data_analysis",
+                        "detail", "Calling OpenClaw analysis"
+                ));
+
+                TicketAnalyzeSuggestionResponse suggestion = openClawAgentAppService.analyzeTicket(request, actorUserId);
+
+                send(outputStream, response, "assistant_delta", Map.of(
+                        "message_id", "assistant_1",
+                        "delta", suggestion.summary() != null && !suggestion.summary().isBlank()
+                                ? suggestion.summary()
+                                : "Analysis complete."
+                ));
+                send(outputStream, response, "assistant_done", Map.of("message_id", "assistant_1"));
+                send(outputStream, response, "tool_finished", Map.of(
+                        "message_id", "tool_1",
+                        "tool_name", "platform_skill_data_analysis",
+                        "detail", "OpenClaw analysis completed"
+                ));
+                send(outputStream, response, "structured_result", Map.of(
+                        "type", request.mode(),
+                        "payload", suggestion
+                ));
+            } else {
+                final String assistantMessageId = "assistant_1";
+                final boolean[] assistantStarted = {false};
+                final boolean[] assistantFinished = {false};
+
+                openClawAgentAppService.streamChat(request, actorUserId, sessionId, eventData -> {
+                    try {
+                        String delta = extractOpenClawDelta(eventData);
+                        if (StringUtils.hasText(delta)) {
+                            send(outputStream, response, "assistant_delta", Map.of(
                                     "message_id", assistantMessageId,
-                                    "delta", fallback
+                                    "delta", delta
                             ));
                             assistantStarted[0] = true;
                         }
+                        if (isOpenClawDone(eventData) && assistantStarted[0] && !assistantFinished[0]) {
+                            send(outputStream, response, "assistant_done", Map.of("message_id", assistantMessageId));
+                            assistantFinished[0] = true;
+                        }
+                    } catch (IOException ioException) {
+                        throw new RuntimeException(ioException);
                     }
-                    if (assistantStarted[0] && !assistantFinished[0]) {
-                        send(outputStream, "assistant_done", Map.of("message_id", assistantMessageId));
+                });
+
+                if (!assistantStarted[0]) {
+                    String fallback = openClawAgentAppService.chat(request, actorUserId, sessionId);
+                    if (StringUtils.hasText(fallback)) {
+                        send(outputStream, response, "assistant_delta", Map.of(
+                                "message_id", assistantMessageId,
+                                "delta", fallback
+                        ));
+                        assistantStarted[0] = true;
                     }
                 }
 
-                send(outputStream, "done", Map.of("session_id", sessionId));
-            } catch (Exception ex) {
-                log.warn("Agent SSE request failed: {}", ex.getMessage());
-                try {
-                    send(outputStream, "error", Map.of("message", ex.getMessage() != null ? ex.getMessage() : "Agent request failed"));
-                } catch (IOException ioException) {
-                    log.debug("Unable to send agent error event: {}", ioException.getMessage());
+                if (assistantStarted[0] && !assistantFinished[0]) {
+                    send(outputStream, response, "assistant_done", Map.of("message_id", assistantMessageId));
                 }
-            } finally {
-                outputStream.flush();
             }
-        };
 
-        return ResponseEntity.ok()
-                .header("X-Accel-Buffering", "no")
-                .header(HttpHeaders.CACHE_CONTROL, "no-cache")
-                .header(HttpHeaders.CONNECTION, "keep-alive")
-                .contentType(MediaType.TEXT_EVENT_STREAM)
-                .body(stream);
+            send(outputStream, response, "done", Map.of("session_id", sessionId));
+        } catch (Exception ex) {
+            log.warn("Agent SSE request failed: {}", ex.getMessage());
+            try {
+                send(outputStream, response, "error", Map.of(
+                        "message", ex.getMessage() != null ? ex.getMessage() : "Agent request failed"
+                ));
+            } catch (IOException ioException) {
+                log.debug("Unable to send agent error event: {}", ioException.getMessage());
+            }
+        } finally {
+            outputStream.flush();
+            response.flushBuffer();
+        }
     }
 
     private void send(OutputStream outputStream,
+                      HttpServletResponse response,
                       String eventName,
                       Object payload) throws IOException {
         String data = objectMapper.writeValueAsString(payload);
@@ -141,6 +150,7 @@ public class AgentController {
                 "data: " + data + "\n\n";
         outputStream.write(chunk.getBytes(StandardCharsets.UTF_8));
         outputStream.flush();
+        response.flushBuffer();
     }
 
     private String extractOpenClawDelta(String eventData) {
