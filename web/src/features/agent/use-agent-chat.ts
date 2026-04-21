@@ -191,11 +191,9 @@ export function useAgentChat(options?: UseAgentChatOptions) {
     try {
       const response = await fetch(buildApiUrl('/api/web/agent/chat'), {
         method: 'POST',
-        headers: {
-          ...getCsrfHeaders({
-            'Content-Type': 'application/json',
-          }),
-        },
+        headers: getCsrfHeaders({
+          'Content-Type': 'application/json',
+        }),
         body: JSON.stringify({
           session_id: sessionId,
           chat_id: options?.chatId,
