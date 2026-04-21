@@ -84,13 +84,30 @@ public class AgentController {
                         "payload", suggestion
                 ));
             } else {
-                openClawAgentAppService.streamChat(request, actorUserId, sessionId, rawSseChunk -> {
+                final String assistantMessageId = "assistant_1";
+                final boolean[] assistantStarted = {false};
+                final boolean[] assistantFinished = {false};
+                openClawAgentAppService.streamChat(request, actorUserId, sessionId, eventData -> {
                     try {
-                        writeRawChunk(outputStream, response, rawSseChunk);
+                        String delta = extractOpenClawDelta(eventData);
+                        if (StringUtils.hasText(delta)) {
+                            send(outputStream, response, "assistant_delta", Map.of(
+                                    "message_id", assistantMessageId,
+                                    "delta", delta
+                            ));
+                            assistantStarted[0] = true;
+                        }
+                        if (isOpenClawDone(eventData) && assistantStarted[0] && !assistantFinished[0]) {
+                            send(outputStream, response, "assistant_done", Map.of("message_id", assistantMessageId));
+                            assistantFinished[0] = true;
+                        }
                     } catch (IOException ioException) {
                         throw new RuntimeException(ioException);
                     }
                 });
+                if (assistantStarted[0] && !assistantFinished[0]) {
+                    send(outputStream, response, "assistant_done", Map.of("message_id", assistantMessageId));
+                }
             }
 
             send(outputStream, response, "done", Map.of("session_id", sessionId));
@@ -119,13 +136,38 @@ public class AgentController {
         response.flushBuffer();
     }
 
-    private void writeRawChunk(OutputStream outputStream,
-                               HttpServletResponse response,
-                               String rawChunk) throws IOException {
-        String chunk = rawChunk.endsWith("\n\n") ? rawChunk : rawChunk + "\n\n";
-        outputStream.write(chunk.getBytes(StandardCharsets.UTF_8));
-        outputStream.flush();
-        response.flushBuffer();
+    private String extractOpenClawDelta(String eventData) {
+        try {
+            Map<?, ?> payload = objectMapper.readValue(eventData, Map.class);
+            Object delta = payload.get("delta");
+            if (delta instanceof String text && StringUtils.hasText(text)) {
+                return text;
+            }
+            Object outputText = payload.get("output_text");
+            if (outputText instanceof String text && StringUtils.hasText(text)) {
+                return text;
+            }
+            Object type = payload.get("type");
+            Object text = payload.get("text");
+            if ("response.output_text.done".equals(type) && text instanceof String doneText && StringUtils.hasText(doneText)) {
+                return doneText;
+            }
+        } catch (Exception ex) {
+            log.debug("Failed to parse OpenClaw stream payload: {}", ex.getMessage());
+        }
+        return "";
+    }
+
+    private boolean isOpenClawDone(String eventData) {
+        try {
+            Map<?, ?> payload = objectMapper.readValue(eventData, Map.class);
+            Object type = payload.get("type");
+            return "response.completed".equals(type)
+                    || "response.done".equals(type)
+                    || "response.output_text.done".equals(type);
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private AgentChatRequest parseRequest(String requestBody) {

@@ -174,7 +174,7 @@ public class OpenClawAgentAppService {
                         emitted = true;
                         log.info("OpenClaw stream delta: {}", abbreviateForLog(delta));
                     }
-                    onEventData.accept("data: " + data + "\n\n");
+                    onEventData.accept(data);
                 }
             }
 
@@ -486,7 +486,7 @@ public class OpenClawAgentAppService {
         int step = 24;
         for (int index = 0; index < text.length(); index += step) {
             int end = Math.min(text.length(), index + step);
-            onEventData.accept("data: {\"type\":\"response.output_text.delta\",\"delta\":%s}\n\n"
+            onEventData.accept("{\"type\":\"response.output_text.delta\",\"delta\":%s}"
                     .formatted(quoteJson(text.substring(index, end))));
         }
     }

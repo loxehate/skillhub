@@ -33,11 +33,21 @@ function extractOpenClawDelta(payload: Record<string, unknown>) {
   if (typeof payload.delta === 'string' && payload.delta) {
     return payload.delta
   }
+  if (typeof payload.text === 'string' && payload.type === 'response.content_part.added') {
+    return payload.text
+  }
   if (typeof payload.output_text === 'string' && payload.output_text) {
     return payload.output_text
   }
   if (payload.type === 'response.output_text.done' && typeof payload.text === 'string') {
     return payload.text
+  }
+  const part = payload.part
+  if (part && typeof part === 'object') {
+    const partRecord = part as Record<string, unknown>
+    if (typeof partRecord.text === 'string' && partRecord.text) {
+      return partRecord.text
+    }
   }
   return ''
 }
