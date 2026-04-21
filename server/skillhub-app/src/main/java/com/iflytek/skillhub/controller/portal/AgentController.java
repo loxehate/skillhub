@@ -84,15 +84,13 @@ public class AgentController {
                         "payload", suggestion
                 ));
             } else {
-                openClawAgentAppService.streamChat(request, actorUserId, sessionId, eventData -> {
+                openClawAgentAppService.streamChat(request, actorUserId, sessionId, rawSseChunk -> {
                     try {
-                        log.info("AgentController stream event: {}", abbreviateForLog(eventData));
-                        sendRawData(outputStream, response, eventData);
+                        writeRawChunk(outputStream, response, rawSseChunk);
                     } catch (IOException ioException) {
                         throw new RuntimeException(ioException);
                     }
                 });
-                send(outputStream, response, "assistant_done", Map.of("message_id", "assistant_1"));
             }
 
             send(outputStream, response, "done", Map.of("session_id", sessionId));
@@ -121,10 +119,10 @@ public class AgentController {
         response.flushBuffer();
     }
 
-    private void sendRawData(OutputStream outputStream,
-                             HttpServletResponse response,
-                             String payload) throws IOException {
-        String chunk = "data: " + payload + "\n\n";
+    private void writeRawChunk(OutputStream outputStream,
+                               HttpServletResponse response,
+                               String rawChunk) throws IOException {
+        String chunk = rawChunk.endsWith("\n\n") ? rawChunk : rawChunk + "\n\n";
         outputStream.write(chunk.getBytes(StandardCharsets.UTF_8));
         outputStream.flush();
         response.flushBuffer();
@@ -159,13 +157,5 @@ public class AgentController {
         if (request.context() == null || !StringUtils.hasText(request.context().source())) {
             throw new IllegalArgumentException("Agent source is required");
         }
-    }
-
-    private String abbreviateForLog(String value) {
-        String text = value == null ? "" : value.trim().replaceAll("\\s+", " ");
-        if (text.length() <= 200) {
-            return text;
-        }
-        return text.substring(0, 200) + "...[truncated]";
     }
 }
