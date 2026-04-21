@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./skillhub-logo.svg" alt="SkillHub Logo" width="120" height="120" />
   <h1>SkillHub</h1>
-  <p>企业级开源智能体技能注册中心 — 在组织内发布、发现和管理可复用的技能包-1</p>
+  <p>企业级开源智能体技能注册中心 — 在组织内发布、发现和管理可复用的技能包-AI</p>
 </div>
 
 <div align="center">
