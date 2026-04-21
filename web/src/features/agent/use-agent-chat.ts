@@ -42,6 +42,12 @@ function extractOpenClawDelta(payload: Record<string, unknown>) {
   return ''
 }
 
+function isOpenClawDone(payload: Record<string, unknown>) {
+  return payload.type === 'response.completed'
+    || payload.type === 'response.done'
+    || payload.type === 'response.output_text.done'
+}
+
 type UseAgentChatOptions = {
   onSuggestion?: (suggestion: TicketAnalyzeSuggestion) => void
   storageKey?: string
@@ -157,14 +163,20 @@ export function useAgentChat(options?: UseAgentChatOptions) {
     sendingRef.current = true
     setIsStreaming(true)
 
-    appendMessage({
+    const previousMessages = messagesRef.current
+    const userMessage: AgentMessage = {
       id: uid('user'),
       role: 'user',
       content: params.message,
       createdAt: nowIso(),
-    })
+    }
 
-    const conversationMessages = toConversationTurns(messagesRef.current)
+    appendMessage(userMessage)
+
+    const conversationMessages = toConversationTurns([
+      ...previousMessages,
+      userMessage,
+    ])
 
     try {
       const response = await fetch(buildApiUrl('/api/web/agent/chat'), {
@@ -232,6 +244,11 @@ export function useAgentChat(options?: UseAgentChatOptions) {
               })
             }
             updateAssistantDelta(currentAssistantId, delta)
+          }
+          if (isOpenClawDone(payload) && currentAssistantId) {
+            finishAssistant(currentAssistantId)
+            currentAssistantId = null
+            setIsStreaming(false)
           }
           return
         }
@@ -312,6 +329,10 @@ export function useAgentChat(options?: UseAgentChatOptions) {
             break
 
           case 'done':
+            if (currentAssistantId) {
+              finishAssistant(currentAssistantId)
+              currentAssistantId = null
+            }
             setIsStreaming(false)
             break
         }
