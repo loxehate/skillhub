@@ -97,6 +97,16 @@ public class AgentController {
                             throw new RuntimeException(ioException);
                         }
                     });
+                    if (!assistantStarted[0]) {
+                        String fallback = openClawAgentAppService.chat(request, actorUserId, sessionId);
+                        if (StringUtils.hasText(fallback)) {
+                            send(outputStream, "assistant_delta", Map.of(
+                                    "message_id", assistantMessageId,
+                                    "delta", fallback
+                            ));
+                            assistantStarted[0] = true;
+                        }
+                    }
                     if (assistantStarted[0] && !assistantFinished[0]) {
                         send(outputStream, "assistant_done", Map.of("message_id", assistantMessageId));
                     }
