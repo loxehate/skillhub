@@ -5,15 +5,11 @@ import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
 import com.iflytek.skillhub.dto.AgentChatRequest;
 import com.iflytek.skillhub.dto.TicketAnalyzeSuggestionResponse;
 import com.iflytek.skillhub.service.OpenClawAgentAppService;
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -42,19 +38,13 @@ public class AgentController {
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
     public SseEmitter chat(@RequestBody String requestBody,
-                           HttpServletResponse response,
-                           @AuthenticationPrincipal PlatformPrincipal principal) {
+                           @org.springframework.security.core.annotation.AuthenticationPrincipal PlatformPrincipal principal) {
         AgentChatRequest request = parseRequest(requestBody);
         String sessionId = openClawAgentAppService.resolveSessionId(request.sessionId());
         String actorUserId = principal != null ? principal.userId() : "anonymous";
 
-        response.setHeader("X-Accel-Buffering", "no");
-        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache");
-        response.setHeader(HttpHeaders.CONNECTION, "keep-alive");
-
         SseEmitter emitter = new SseEmitter(0L);
-
-        CompletableFuture.runAsync(() -> {
+        new Thread(() -> {
             try {
                 send(emitter, "session_started", Map.of("session_id", sessionId));
 
@@ -84,42 +74,13 @@ public class AgentController {
                             "payload", suggestion
                     ));
                 } else {
-                    final String assistantMessageId = "assistant_1";
-                    final boolean[] assistantStarted = {false};
-                    final boolean[] assistantFinished = {false};
-
-                    openClawAgentAppService.streamChat(request, actorUserId, sessionId, eventData -> {
-                        try {
-                            String delta = extractOpenClawDelta(eventData);
-                            if (StringUtils.hasText(delta)) {
-                                send(emitter, "assistant_delta", Map.of(
-                                        "message_id", assistantMessageId,
-                                        "delta", delta
-                                ));
-                                assistantStarted[0] = true;
-                            }
-                            if (isOpenClawDone(eventData) && assistantStarted[0] && !assistantFinished[0]) {
-                                send(emitter, "assistant_done", Map.of("message_id", assistantMessageId));
-                                assistantFinished[0] = true;
-                            }
-                        } catch (IOException ioException) {
-                            throw new RuntimeException(ioException);
-                        }
-                    });
-
-                    if (!assistantStarted[0]) {
-                        String fallback = openClawAgentAppService.chat(request, actorUserId, sessionId);
-                        if (StringUtils.hasText(fallback)) {
-                            send(emitter, "assistant_delta", Map.of(
-                                    "message_id", assistantMessageId,
-                                    "delta", fallback
-                            ));
-                            assistantStarted[0] = true;
-                        }
-                    }
-
-                    if (assistantStarted[0] && !assistantFinished[0]) {
-                        send(emitter, "assistant_done", Map.of("message_id", assistantMessageId));
+                    String answer = openClawAgentAppService.chat(request, actorUserId, sessionId);
+                    if (StringUtils.hasText(answer)) {
+                        send(emitter, "assistant_delta", Map.of(
+                                "message_id", "assistant_1",
+                                "delta", answer
+                        ));
+                        send(emitter, "assistant_done", Map.of("message_id", "assistant_1"));
                     }
                 }
 
@@ -137,7 +98,7 @@ public class AgentController {
                     emitter.complete();
                 }
             }
-        });
+        }, "skillhub-agent-chat").start();
 
         return emitter;
     }
@@ -146,40 +107,6 @@ public class AgentController {
         emitter.send(SseEmitter.event()
                 .name(eventName)
                 .data(payload, MediaType.APPLICATION_JSON));
-    }
-
-    private String extractOpenClawDelta(String eventData) {
-        try {
-            Map<?, ?> payload = objectMapper.readValue(eventData, Map.class);
-            Object delta = payload.get("delta");
-            if (delta instanceof String text && StringUtils.hasText(text)) {
-                return text;
-            }
-            Object outputText = payload.get("output_text");
-            if (outputText instanceof String text && StringUtils.hasText(text)) {
-                return text;
-            }
-            Object type = payload.get("type");
-            Object text = payload.get("text");
-            if ("response.output_text.done".equals(type) && text instanceof String doneText && StringUtils.hasText(doneText)) {
-                return doneText;
-            }
-        } catch (Exception ex) {
-            log.debug("Failed to parse OpenClaw stream payload: {}", ex.getMessage());
-        }
-        return "";
-    }
-
-    private boolean isOpenClawDone(String eventData) {
-        try {
-            Map<?, ?> payload = objectMapper.readValue(eventData, Map.class);
-            Object type = payload.get("type");
-            return "response.completed".equals(type)
-                    || "response.done".equals(type)
-                    || "response.output_text.done".equals(type);
-        } catch (Exception ex) {
-            return false;
-        }
     }
 
     private AgentChatRequest parseRequest(String requestBody) {
